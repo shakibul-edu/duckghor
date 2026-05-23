@@ -9,7 +9,7 @@ export default function AdminDashboard() {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [dbError, setDbError] = useState<string | null>(null);
-  const [stats, setStats] = useState({ totalOrders: 0, revenue: 0, pending: 0, paid: 0, shipped: 0 });
+  const [stats, setStats] = useState({ totalOrders: 0, revenue: 0, pending: 0, active: 0, paid: 0 });
   const [activeTab, setActiveTab] = useState<'orders' | 'menu' | 'coupons' | 'customers' | 'settings'>('orders');
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
   const [filteredRevenue, setFilteredRevenue] = useState(0);
@@ -37,14 +37,14 @@ export default function AdminDashboard() {
       setOrders(docs);
       
       let rev = 0;
-      let p = 0; let pa = 0; let sh = 0;
+      let p = 0; let a = 0; let pa = 0;
       const custs = new Map();
 
       docs.forEach(current => {
         rev += (current.totalAmount || 0);
         if (current.status === 'Pending Confirmation') p++;
-        if (current.status === 'Paid') pa++;
-        if (current.status === 'Shipped') sh++;
+        if (['Cooking', 'Ready', 'Out for Delivery'].includes(current.status)) a++;
+        if (current.paymentStatus === 'Paid') pa++;
 
         if (current.customerId) {
           const c = custs.get(current.customerId) || { id: current.customerId, name: current.customerName, email: current.customerEmail, phone: current.customerPhone, totalSpent: 0, orderCount: 0, lastOrder: null };
@@ -58,7 +58,7 @@ export default function AdminDashboard() {
         }
       });
 
-      setStats({ totalOrders: docs.length, revenue: rev, pending: p, paid: pa, shipped: sh });
+      setStats({ totalOrders: docs.length, revenue: rev, pending: p, active: a, paid: pa });
       setCustomers(Array.from(custs.values()).sort((a,b) => b.totalSpent - a.totalSpent));
       setLoading(false);
       setDbError(null);
@@ -191,6 +191,18 @@ export default function AdminDashboard() {
     }
   };
 
+  const updatePaymentStatus = async (orderId: string, newPaymentStatus: string) => {
+    try {
+      const orderRef = doc(db, 'orders', orderId);
+      await updateDoc(orderRef, {
+        paymentStatus: newPaymentStatus,
+        updatedAt: serverTimestamp()
+      });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, 'orders');
+    }
+  };
+
   if (loading) return <div className="flex justify-center py-20"><Loader2 className="animate-spin text-slate-400" size={32} /></div>;
 
   if (dbError) {
@@ -249,8 +261,8 @@ export default function AdminDashboard() {
           </div>
           <div className="flex justify-between text-sm">
              <div className="text-center"><span className="font-bold text-lg text-amber-600">{stats.pending}</span><br/><span className="text-slate-500 text-xs">Pending</span></div>
-             <div className="text-center"><span className="font-bold text-lg text-emerald-600">{stats.paid}</span><br/><span className="text-slate-500 text-xs">Paid</span></div>
-             <div className="text-center"><span className="font-bold text-lg text-blue-600">{stats.shipped}</span><br/><span className="text-slate-500 text-xs">Shipped</span></div>
+             <div className="text-center"><span className="font-bold text-lg text-blue-600">{stats.active}</span><br/><span className="text-slate-500 text-xs">Active</span></div>
+             <div className="text-center"><span className="font-bold text-lg text-emerald-600">{stats.paid}</span><br/><span className="text-slate-500 text-xs text-center">Fully Paid</span></div>
           </div>
         </div>
       </div>
@@ -359,25 +371,44 @@ export default function AdminDashboard() {
                   <td className="px-6 py-4">
                     <span className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${
                       order.status === 'Delivered' ? 'bg-slate-100 text-slate-700' : 
-                      order.status === 'Shipped' ? 'bg-blue-100 text-blue-700' :
-                      order.status === 'Paid' ? 'bg-emerald-100 text-emerald-700' :
+                      order.status === 'Out for Delivery' ? 'bg-blue-100 text-blue-700' :
+                      order.status === 'Ready' ? 'bg-emerald-100 text-emerald-700' :
+                      order.status === 'Cancelled' ? 'bg-rose-100 text-rose-700' :
                       'bg-amber-100 text-amber-700'
                     }`}>
                       {order.status}
                     </span>
+                    <span className={`mt-2 block w-max px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${
+                      order.paymentStatus === 'Paid' ? 'bg-emerald-100 text-emerald-700' :
+                      order.paymentStatus === 'Failed' ? 'bg-rose-100 text-rose-700' :
+                      'bg-slate-100 text-slate-700'
+                    }`}>
+                      {order.paymentStatus || 'Pending'}
+                    </span>
                   </td>
-                  <td className="px-6 py-4">
-                    <select 
-                      value={order.status}
-                      onChange={(e) => updateStatus(order.id, e.target.value)}
-                      className="bg-white border text-xs font-medium border-slate-200 rounded px-2 py-1.5 focus:ring-1 focus:ring-slate-400 focus:outline-none text-slate-700"
-                    >
-                      <option value="Pending Confirmation">Pending Confirmation</option>
-                      <option value="Paid">Paid</option>
-                      <option value="Shipped">Shipped</option>
-                      <option value="Delivered">Delivered</option>
-                    </select>
-                  </td>
+                    <td className="px-6 py-4">
+                      <select 
+                        value={order.status}
+                        onChange={(e) => updateStatus(order.id, e.target.value)}
+                        className="bg-white border text-xs font-medium border-slate-200 rounded px-2 py-1.5 focus:ring-1 focus:ring-slate-400 focus:outline-none text-slate-700"
+                      >
+                        <option value="Pending Confirmation">Pending Confirmation</option>
+                        <option value="Cooking">Cooking</option>
+                        <option value="Ready">Ready</option>
+                        <option value="Out for Delivery">Out for Delivery</option>
+                        <option value="Delivered">Delivered</option>
+                        <option value="Cancelled">Cancelled</option>
+                      </select>
+                      <select 
+                        value={order.paymentStatus || 'Pending'}
+                        onChange={(e) => updatePaymentStatus(order.id, e.target.value)}
+                        className="bg-white border text-xs font-medium border-slate-200 rounded px-2 py-1.5 focus:ring-1 focus:ring-slate-400 focus:outline-none text-slate-700 mt-2"
+                      >
+                        <option value="Pending">Payment: Pending</option>
+                        <option value="Paid">Payment: Paid</option>
+                        <option value="Failed">Payment: Failed</option>
+                      </select>
+                    </td>
                 </tr>
               ))}
               {orders.length === 0 && (
@@ -543,12 +574,27 @@ export default function AdminDashboard() {
                         updateStatus(viewDetailOrder.id, e.target.value);
                         setViewDetailOrder({...viewDetailOrder, status: e.target.value});
                       }}
-                      className="bg-white border text-sm font-bold border-slate-200 rounded px-3 py-2 w-full mt-1 focus:outline-none"
+                      className="bg-white border text-sm font-bold border-slate-200 rounded px-3 py-2 w-full mt-1 focus:outline-none mb-2"
                     >
                       <option value="Pending Confirmation">Pending Confirmation</option>
+                        <option value="Cooking">Cooking</option>
+                        <option value="Ready">Ready</option>
+                        <option value="Out for Delivery">Out for Delivery</option>
+                        <option value="Delivered">Delivered</option>
+                        <option value="Cancelled">Cancelled</option>
+                    </select>
+                    <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mb-1 mt-3">Payment Status</p>
+                    <select 
+                      value={viewDetailOrder.paymentStatus || 'Pending'}
+                      onChange={(e) => {
+                        updatePaymentStatus(viewDetailOrder.id, e.target.value);
+                        setViewDetailOrder({...viewDetailOrder, paymentStatus: e.target.value});
+                      }}
+                      className="bg-white border text-sm font-bold border-slate-200 rounded px-3 py-2 w-full mt-1 focus:outline-none"
+                    >
+                      <option value="Pending">Pending</option>
                       <option value="Paid">Paid</option>
-                      <option value="Shipped">Shipped</option>
-                      <option value="Delivered">Delivered</option>
+                      <option value="Failed">Failed</option>
                     </select>
                   </div>
                </div>

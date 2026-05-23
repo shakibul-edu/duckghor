@@ -122,28 +122,40 @@ export default function Orders() {
                   <div className="text-xs text-slate-400 font-bold uppercase tracking-widest mb-1">
                     ID: #{order.id.slice(0,8).toUpperCase()} • {order.createdAt?.toDate().toLocaleDateString() || 'Just now'}
                   </div>
-                  <div className="font-bold flex items-center gap-2 text-sm text-slate-900 mb-4">
-                    Status: 
-                    <span className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${
-                      order.status === 'Delivered' ? 'bg-slate-100 text-slate-700' : 
-                      order.status === 'Shipped' ? 'bg-blue-100 text-blue-700' :
-                      order.status === 'Paid' ? 'bg-emerald-100 text-emerald-700' :
-                      'bg-amber-100 text-amber-700'
-                    }`}>
-                      {order.status}
-                    </span>
+                  <div className="font-bold flex flex-col gap-2 text-sm text-slate-900 mb-4">
+                    <div className="flex items-center gap-2">
+                      <span>Order Status:</span>
+                      <span className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${
+                        order.status === 'Delivered' ? 'bg-slate-100 text-slate-700' : 
+                        order.status === 'Out for Delivery' ? 'bg-blue-100 text-blue-700' :
+                        order.status === 'Ready' ? 'bg-emerald-100 text-emerald-700' :
+                        order.status === 'Cancelled' ? 'bg-rose-100 text-rose-700' :
+                        'bg-amber-100 text-amber-700'
+                      }`}>
+                        {order.status}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                       <span>Payment:</span>
+                       <span className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${
+                          order.paymentStatus === 'Paid' ? 'bg-emerald-100 text-emerald-700' :
+                          order.paymentStatus === 'Failed' ? 'bg-rose-100 text-rose-700' :
+                          'bg-slate-100 text-slate-700'
+                       }`}>
+                          {order.paymentStatus || 'Pending'}
+                       </span>
+                    </div>
                   </div>
                   
-                  {/* Real-time Tracker */}
-                  <div className="w-full sm:w-64">
+                  <div className="w-full sm:w-64 mt-2 mb-4">
                     <div className="w-full bg-slate-200 rounded-full h-1.5 mb-2 relative overflow-hidden">
                       <div className="bg-emerald-500 h-1.5 rounded-full transition-all duration-700 absolute left-0 top-0" style={{ 
-                        width: `${(['Pending Confirmation', 'Paid', 'Shipped', 'Delivered'].indexOf(order.status) / 3) * 100}%` 
+                        width: `${(['Pending Confirmation', 'Cooking', 'Ready', 'Out for Delivery', 'Delivered'].indexOf(order.status) / 4) * 100}%` 
                       }}></div>
                     </div>
                     <div className="flex justify-between text-[9px] uppercase font-bold text-slate-400">
-                      {['Pending', 'Paid', 'Shipped', 'Delivered'].map((s, i) => (
-                        <span key={s} className={i <= ['Pending Confirmation', 'Paid', 'Shipped', 'Delivered'].indexOf(order.status) ? "text-emerald-600" : ""}>{s}</span>
+                      {['Pending', 'Cooking', 'Ready', 'Delivery', 'Delivered'].map((s, i) => (
+                        <span key={s} className={i <= ['Pending Confirmation', 'Cooking', 'Ready', 'Out for Delivery', 'Delivered'].indexOf(order.status) ? "text-emerald-600" : ""}>{s}</span>
                       ))}
                     </div>
                   </div>
@@ -159,7 +171,7 @@ export default function Orders() {
                      <div className="text-xs text-slate-500 font-medium mb-1">+৳{order.deliveryFee.toFixed(2)} delivery</div>
                   )}
                   <div className="text-xs text-slate-400 font-medium tracking-wide uppercase mb-3">{order.items?.length || 0} items</div>
-                  {!order.reviewed && ['Paid', 'Shipped', 'Delivered'].includes(order.status) && (
+                  {!order.reviewed && ['Delivered'].includes(order.status) && (
                     <button 
                       onClick={() => setReviewOrder(order)}
                       className="bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wider flex items-center justify-end gap-1 ml-auto"

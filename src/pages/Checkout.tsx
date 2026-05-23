@@ -9,11 +9,16 @@ import { MenuItem } from '../data/menu';
 import { calculateDistance } from '../lib/utils';
 
 export default function Checkout() {
-  const { user } = useAuth();
-  const { clearCart } = useCart();
+  const { user, loading: authLoading } = useAuth();
+  const { cart: contextCart, totalAmount: contextTotal, clearCart } = useCart();
   const location = useLocation();
   const navigate = useNavigate();
-  const state = location.state as { cart: {item: MenuItem, quantity: number}[]; totalAmount: number };
+  // Support both context (default) and location state (legacy)
+  const passedState = location.state as { cart: {item: MenuItem, quantity: number}[]; totalAmount: number };
+  
+  const cart = passedState?.cart || contextCart;
+  const totalAmount = passedState ? passedState.totalAmount : contextTotal;
+  const state = { cart, totalAmount };
   
   const [coords, setCoords] = useState<{lat: number, lng: number} | null>(null);
   const [address, setAddress] = useState<string>('');
@@ -33,10 +38,11 @@ export default function Checkout() {
   const [storeSettings, setStoreSettings] = useState({ lat: 23.8103, lng: 90.4125, maxDeliveryDistance: 5 });
 
   useEffect(() => {
+    if (authLoading) return;
     if (!state?.cart?.length || !user) {
       navigate('/');
     }
-  }, [state, user, navigate]);
+  }, [state, user, authLoading, navigate]);
 
   useEffect(() => {
     import('firebase/firestore').then(({ getDoc, doc }) => {
@@ -134,6 +140,7 @@ export default function Checkout() {
         customerPhone: customerPhone.trim(),
         customerEmail: user.email || '',
         status: 'Pending Confirmation',
+        paymentStatus: 'Pending',
         totalAmount: finalAmount,
         originalAmount: state.totalAmount,
         discountApplied: discountAmount,
@@ -164,7 +171,11 @@ export default function Checkout() {
     }
   };
 
-  if (!state) return null;
+  if (authLoading) {
+    return <div className="flex justify-center py-20"><Loader2 className="animate-spin text-amber-500" size={32} /></div>;
+  }
+
+  if (!state || !user) return null;
 
   return (
     <div className="max-w-3xl mx-auto w-full">
