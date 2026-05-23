@@ -1,0 +1,51 @@
+{
+  "entities": {
+    "Order": {
+      "title": "Order",
+      "description": "A food delivery order placed by a customer",
+      "type": "object",
+      "properties": {
+        "customerId": { "type": "string", "description": "The UID of the user who placed the order" },
+        "customerEmail": { "type": "string", "description": "The email of the customer" },
+        "status": { 
+          "type": "string", 
+          "enum": ["Pending Confirmation", "Shipped", "Paid", "Delivered"],
+          "description": "Order status"
+        },
+        "totalAmount": { "type": "number", "description": "Total cost of the order" },
+        "location": {
+          "type": "object",
+          "properties": {
+            "lat": { "type": "number" },
+            "lng": { "type": "number" }
+          },
+          "required": ["lat", "lng"]
+        },
+        "createdAt": { "type": "timestamp", "description": "Creation time" },
+        "updatedAt": { "type": "timestamp", "description": "Last updated time" }
+      },
+      "required": ["customerId", "customerEmail", "status", "totalAmount", "location", "createdAt", "updatedAt"]
+    },
+    "Admin": {
+      "title": "Admin",
+      "description": "Admin users identified by email",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "description": "The admin's email address" },
+        "role": { "type": "string", "description": "Role, e.g., 'admin'" },
+        "createdAt": { "type": "timestamp" }
+      },
+      "required": ["email", "role", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/orders/{orderId}": {
+      "schema": { "$ref": "#/entities/Order" },
+      "description": "Orders collection"
+    },
+    "/admins/{email}": {
+      "schema": { "$ref": "#/entities/Admin" },
+      "description": "Track admin users by email address as the document ID"
+    }
+  }
+}

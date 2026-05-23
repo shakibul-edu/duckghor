@@ -1,0 +1,10 @@
+{
+  "name": "SwiftBite",
+  "description": "A food delivery app with real-time tracking, order management, and an admin dashboard.",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
