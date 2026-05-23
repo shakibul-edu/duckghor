@@ -1,14 +1,17 @@
 import React from 'react';
-import { Outlet, Link, useNavigate } from 'react-router-dom';
+import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
-import { LogOut, LayoutDashboard, ShoppingBag, MapPin, User as UserIcon } from 'lucide-react';
-import { motion } from 'motion/react';
+import { LogOut, LayoutDashboard, ShoppingBag, MapPin, User as UserIcon, ShoppingCart } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 
 export default function Layout() {
   const { user, isAdmin, signInWithGoogle, logOut } = useAuth();
-  const { totalItems } = useCart();
+  const { totalItems, totalAmount } = useCart();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const showFloatingCart = totalItems > 0 && ['/', '/menu'].includes(location.pathname);
 
   return (
     <div className="min-h-screen bg-slate-100 font-sans text-slate-900 flex flex-col">
@@ -90,6 +93,35 @@ export default function Layout() {
           &copy; {new Date().getFullYear()} Duckঘর Delivery. All rights reserved.
         </div>
       </footer>
+
+      <AnimatePresence>
+        {showFloatingCart && (
+          <motion.div
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 50 }}
+            className="fixed bottom-4 left-4 right-4 md:left-auto md:right-8 md:w-80 md:bottom-8 lg:hidden z-50 pointer-events-none"
+          >
+            <button
+              onClick={() => navigate('/checkout')}
+              className="w-full bg-amber-500 hover:bg-amber-400 text-slate-900 rounded-2xl shadow-xl p-4 flex items-center justify-between font-bold transition-transform hover:scale-[1.02] active:scale-[0.98] pointer-events-auto"
+            >
+              <div className="flex items-center gap-3">
+                <div className="bg-slate-900 text-amber-500 w-8 h-8 rounded-full flex items-center justify-center text-sm">
+                  {totalItems}
+                </div>
+                <div className="flex flex-col items-start leading-tight">
+                  <span className="text-sm">View Cart</span>
+                  <span className="text-xs font-medium opacity-80">Delivery fee not included</span>
+                </div>
+              </div>
+              <span className="bg-slate-900/10 px-3 py-1.5 rounded-lg">
+                ৳{totalAmount.toFixed(2)}
+              </span>
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

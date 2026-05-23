@@ -127,7 +127,7 @@ export default function Menu() {
       </div>
 
       {cart.length > 0 && (
-        <div className="lg:w-96 w-full lg:sticky lg:top-24 h-fit">
+        <div className="hidden lg:block lg:w-96 w-full lg:sticky lg:top-24 h-fit">
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
             <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2 mb-6">
               <ShoppingBag className="text-slate-700" /> Your Cart
