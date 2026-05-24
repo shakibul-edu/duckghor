@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect } from 'react';
-import { HashRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { CartProvider } from './contexts/CartContext';
 import { testConnection } from './lib/firebase';
@@ -15,6 +15,7 @@ import Cart from './pages/Cart';
 import Checkout from './pages/Checkout';
 import Orders from './pages/Orders';
 import AdminDashboard from './pages/AdminDashboard';
+import ItemDetail from './pages/ItemDetail';
 
 export default function App() {
   useEffect(() => {
@@ -24,18 +25,19 @@ export default function App() {
   return (
     <AuthProvider>
       <CartProvider>
-        <HashRouter>
+        <BrowserRouter>
           <Routes>
             <Route path="/" element={<Layout />}>
               <Route index element={<Home />} />
               <Route path="menu" element={<Menu />} />
+              <Route path="menu/:itemName" element={<ItemDetail />} />
               <Route path="cart" element={<Cart />} />
               <Route path="checkout" element={<Checkout />} />
               <Route path="orders" element={<Orders />} />
               <Route path="admin" element={<AdminDashboard />} />
             </Route>
           </Routes>
-        </HashRouter>
+        </BrowserRouter>
       </CartProvider>
     </AuthProvider>
   );

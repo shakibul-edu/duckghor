@@ -50,7 +50,7 @@ export default function Cart() {
           {cart.map((c) => (
             <div key={c.item.id} className="p-4 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center gap-4">
               <div className="h-20 w-20 shrink-0 rounded-lg overflow-hidden border border-slate-100">
-                <img src={c.item.image} alt={c.item.name} className="w-full h-full object-cover" />
+                <img src={c.item.image || undefined} alt={c.item.name} className="w-full h-full object-cover" />
               </div>
               
               <div className="flex-1">

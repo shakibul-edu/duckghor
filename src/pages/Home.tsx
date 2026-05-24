@@ -4,6 +4,7 @@ import { MenuItem } from '../data/menu';
 import { ArrowRight, Utensils, Star, Clock } from 'lucide-react';
 import { db } from '../lib/firebase';
 import { collection, query, limit, getDocs } from 'firebase/firestore';
+import SEO from '../components/SEO';
 
 export default function Home() {
   const navigate = useNavigate();
@@ -27,22 +28,27 @@ export default function Home() {
 
   return (
     <div className="flex flex-col gap-16 pb-12">
+      <SEO 
+        title="Duckঘর | Premium Authentic Duck Meat Delivery" 
+        description="Experience the rich, authentic, and traditional flavors of premium duck meat dishes in Chattogram. Duckঘর brings Bengal's finest duck recipes straight to your doorstep."
+        url={window.location.origin}
+      />
       {/* Hero Section */}
       <section className="relative bg-slate-900 rounded-3xl overflow-hidden shadow-xl mt-4">
-        <div className="absolute inset-0 opacity-40 mix-blend-overlay" style={{backgroundImage: 'url("https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1200&q=80")', backgroundPosition: 'center', backgroundSize: 'cover'}}></div>
+        <div className="absolute inset-0 opacity-50 mix-blend-overlay" style={{backgroundImage: 'url("https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=1200&q=80")', backgroundPosition: 'center', backgroundSize: 'cover'}}></div>
         <div className="relative z-10 px-6 py-20 sm:px-12 sm:py-28 max-w-3xl flex flex-col items-start gap-6">
           <div className="inline-flex items-center gap-2 px-3 py-1 bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-full text-xs font-bold uppercase tracking-wider backdrop-blur-sm">
-            <Utensils size={14} /> Authentic Taste
+            <Utensils size={14} /> Premium Duck Cuisine
           </div>
           <h1 className="text-4xl sm:text-6xl font-black text-white leading-tight tracking-tight">
-            Original taste of <span className="text-amber-500">Bengal</span>
+            The Ultimate <span className="text-amber-500">Duck Meat</span> Experience
           </h1>
-          <p className="text-lg text-slate-300 max-w-xl left-relaxed">
-            Experience the rich and authentic flavors crafted with traditional recipes. Duckঘর brings you the finest culinary journey right to your doorstep.
+          <p className="text-lg text-slate-300 max-w-xl leading-relaxed">
+            Savor the rich, tender, and authentic taste of traditional duck dishes. Handcrafted with premium spices and time-honored recipes, Duckঘর delivers the finest duck delicacies straight to your table.
           </p>
           <div className="flex gap-4 mt-4">
             <button onClick={() => navigate('/menu')} className="bg-amber-500 text-slate-900 hover:bg-amber-400 font-bold px-8 py-4 rounded-xl shadow-lg transition-all flex items-center gap-2">
-              Order Now <ArrowRight size={20} />
+              Explore Our Menu <ArrowRight size={20} />
             </button>
           </div>
         </div>
@@ -52,8 +58,8 @@ export default function Home() {
       <section className="flex flex-col gap-8">
         <div className="flex justify-between items-end">
           <div>
-            <h2 className="text-3xl font-black text-slate-900 tracking-tight">Popular Right Now</h2>
-            <p className="text-slate-500 mt-2">What everyone's ordering from Duckঘর.</p>
+            <h2 className="text-3xl font-black text-slate-900 tracking-tight">Signature Duck Dishes</h2>
+            <p className="text-slate-500 mt-2">Our most loved specialities, cooked to perfection.</p>
           </div>
         </div>
 
@@ -64,25 +70,31 @@ export default function Home() {
             ))
           ) : featured.map(item => (
             <div key={item.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition-all group flex flex-col">
-              <div className="h-48 overflow-hidden relative">
-                <img src={item.image} alt={item.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm px-2.5 py-1 rounded-full text-xs font-bold text-slate-900 flex items-center gap-1 shadow-sm">
-                  <Star size={12} className="text-amber-500 fill-amber-500" /> {((item as any).rating || 5).toFixed(1)}
-                  {((item as any).reviewCount > 0) && <span className="text-slate-400 font-medium ml-0.5">({(item as any).reviewCount})</span>}
+              <div 
+                className="cursor-pointer flex-col flex flex-1"
+                onClick={() => navigate(`/menu/${encodeURIComponent(item.name.toLowerCase().replace(/ /g, '-'))}`)}
+              >
+                <div className="h-48 overflow-hidden relative">
+                  <img src={item.image || undefined} alt={item.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                  <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm px-2.5 py-1 rounded-full text-xs font-bold text-slate-900 flex items-center gap-1 shadow-sm">
+                    <Star size={12} className="text-amber-500 fill-amber-500" /> {((item as any).rating || 5).toFixed(1)}
+                    {((item as any).reviewCount > 0) && <span className="text-slate-400 font-medium ml-0.5">({(item as any).reviewCount})</span>}
+                  </div>
+                </div>
+                <div className="p-5 flex-1 flex flex-col">
+                  <div className="flex justify-between items-start mb-2">
+                    <h3 className="font-bold text-lg text-slate-900 group-hover:text-amber-500 transition-colors">{item.name}</h3>
+                    <span className="font-black text-amber-500 bg-amber-50 px-2 py-1 rounded text-sm">৳{item.price.toFixed(2)}</span>
+                  </div>
+                  <p className="text-sm text-slate-500 mb-5 line-clamp-2 flex-1">{item.description}</p>
                 </div>
               </div>
-              <div className="p-5 flex-1 flex flex-col">
-                <div className="flex justify-between items-start mb-2">
-                  <h3 className="font-bold text-lg text-slate-900">{item.name}</h3>
-                  <span className="font-black text-amber-500 bg-amber-50 px-2 py-1 rounded text-sm">৳{item.price.toFixed(2)}</span>
-                </div>
-                <p className="text-sm text-slate-500 mb-5 line-clamp-2 flex-1">{item.description}</p>
-                
+              <div className="p-5 pt-0">
                 <button 
-                  onClick={() => navigate('/menu')}
-                  className="w-full py-2.5 rounded-lg border-2 border-slate-900 text-slate-900 font-bold hover:bg-slate-900 hover:text-white transition-colors flex items-center justify-center"
+                  onClick={() => navigate(`/menu/${encodeURIComponent(item.name.toLowerCase().replace(/ /g, '-'))}`)}
+                  className="w-full py-2.5 rounded-lg border border-slate-200 text-slate-700 font-bold hover:bg-slate-50 transition-colors flex items-center justify-center cursor-pointer"
                 >
-                  Order
+                  View Details
                 </button>
               </div>
             </div>

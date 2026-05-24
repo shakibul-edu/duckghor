@@ -10,7 +10,7 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [dbError, setDbError] = useState<string | null>(null);
   const [stats, setStats] = useState({ totalOrders: 0, revenue: 0, pendingRevenue: 0, pending: 0, active: 0, paid: 0 });
-  const [activeTab, setActiveTab] = useState<'orders' | 'menu' | 'coupons' | 'customers' | 'settings'>('orders');
+  const [activeTab, setActiveTab] = useState<'orders' | 'menu' | 'categories' | 'coupons' | 'customers' | 'settings'>('orders');
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
   const [filteredRevenue, setFilteredRevenue] = useState(0);
   const [filteredOrders, setFilteredOrders] = useState<any[]>([]);
@@ -21,9 +21,14 @@ export default function AdminDashboard() {
 
   const [menuItems, setMenuItems] = useState<any[]>([]);
   const [coupons, setCoupons] = useState<any[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
-  const [newCoupon, setNewCoupon] = useState({ code: '', discountPercentage: 10, isActive: true, quantity: 100, minAmount: 0, maxDiscount: 0 });
-  const [newItem, setNewItem] = useState({ name: '', description: '', price: 0, image: '' });
+  const [newCategory, setNewCategory] = useState({ name: '', order: 0 });
+  const [newCoupon, setNewCoupon] = useState({ code: '', discountPercentage: 10, isActive: true, quantity: 100, minAmount: 0, maxDiscount: 0, forRepeatCustomersOnly: false, forNewCustomersOnly: false });
+  const [newItem, setNewItem] = useState({ name: '', description: '', price: 0, image: '', categoryId: '' });
+  const [editingCategory, setEditingCategory] = useState<any>(null);
+  const [editingMenuItem, setEditingMenuItem] = useState<any>(null);
+  const [viewDetailCustomer, setViewDetailCustomer] = useState<any>(null);
 
   useEffect(() => {
     if (!user || !isAdmin) {
@@ -70,6 +75,10 @@ export default function AdminDashboard() {
       setCoupons(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
 
+    const unsubCategories = onSnapshot(collection(db, 'categories'), (snapshot) => {
+      setCategories(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).sort((a: any, b: any) => (a.order || 0) - (b.order || 0)));
+    });
+
     const unsubSettings = onSnapshot(doc(db, 'settings', 'delivery'), (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
@@ -85,6 +94,7 @@ export default function AdminDashboard() {
       unsubOrders();
       unsubMenu();
       unsubCoupons();
+      unsubCategories();
       unsubSettings();
     };
   }, [user, isAdmin]);
@@ -147,7 +157,7 @@ export default function AdminDashboard() {
     try {
       import('firebase/firestore').then(({ setDoc, doc }) => {
         setDoc(doc(db, 'coupons', newCoupon.code.trim()), newCoupon);
-        setNewCoupon({ code: '', discountPercentage: 10, isActive: true, quantity: 100, minAmount: 0, maxDiscount: 0 });
+        setNewCoupon({ code: '', discountPercentage: 10, isActive: true, quantity: 100, minAmount: 0, maxDiscount: 0, forRepeatCustomersOnly: false, forNewCustomersOnly: false });
       });
     } catch (e) {
       console.error(e);
@@ -165,6 +175,31 @@ export default function AdminDashboard() {
     }
   };
 
+  const addCategory = async () => {
+    if (!isAdmin) return;
+    if (!newCategory.name.trim()) return;
+    try {
+      import('firebase/firestore').then(({ doc, setDoc }) => {
+        const id = 'c' + Date.now();
+        setDoc(doc(db, 'categories', id), { ...newCategory, id, order: Number(newCategory.order) });
+        setNewCategory({ name: '', order: 0 });
+      });
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const deleteCategory = async (id: string) => {
+    if (!isAdmin) return;
+    try {
+       import('firebase/firestore').then(({ doc, deleteDoc }) => {
+         deleteDoc(doc(db, 'categories', id));
+       });
+    } catch(e) {
+      console.error(e);
+    }
+  };
+
   const addMenuItem = async () => {
     if (!isAdmin) return;
     if (!newItem.name.trim() || !newItem.price) return;
@@ -172,7 +207,7 @@ export default function AdminDashboard() {
        import('firebase/firestore').then(({ doc, setDoc }) => {
          const id = 'm' + Date.now();
          setDoc(doc(db, 'menuItems', id), { ...newItem, id, price: Number(newItem.price) });
-         setNewItem({ name: '', description: '', price: 0, image: '' });
+         setNewItem({ name: '', description: '', price: 0, image: '', categoryId: '' });
        });
     } catch (e) {
       console.error(e);
@@ -186,6 +221,32 @@ export default function AdminDashboard() {
          deleteDoc(doc(db, 'menuItems', id));
        });
     } catch(e) {
+      console.error(e);
+    }
+  };
+
+  const updateCategory = async () => {
+    if (!isAdmin || !editingCategory) return;
+    if (!editingCategory.name.trim()) return;
+    try {
+      import('firebase/firestore').then(({ doc, updateDoc }) => {
+        updateDoc(doc(db, 'categories', editingCategory.id), { ...editingCategory, order: Number(editingCategory.order) });
+        setEditingCategory(null);
+      });
+    } catch(e) {
+       console.error(e);
+    }
+  };
+
+  const updateMenuItem = async () => {
+    if (!isAdmin || !editingMenuItem) return;
+    if (!editingMenuItem.name.trim() || !editingMenuItem.price) return;
+    try {
+       import('firebase/firestore').then(({ doc, updateDoc }) => {
+         updateDoc(doc(db, 'menuItems', editingMenuItem.id), { ...editingMenuItem, price: Number(editingMenuItem.price) });
+         setEditingMenuItem(null);
+       });
+    } catch (e) {
       console.error(e);
     }
   };
@@ -348,6 +409,7 @@ export default function AdminDashboard() {
       <div className="flex gap-4 border-b border-slate-200 mb-6 overflow-x-auto">
         <button onClick={() => setActiveTab('orders')} className={`py-2 px-4 font-bold text-sm border-b-2 whitespace-nowrap transition-colors ${activeTab === 'orders' ? 'border-slate-900 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>Orders</button>
         <button onClick={() => setActiveTab('customers')} className={`py-2 px-4 font-bold text-sm border-b-2 whitespace-nowrap transition-colors ${activeTab === 'customers' ? 'border-slate-900 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>Customers</button>
+        <button onClick={() => setActiveTab('categories')} className={`py-2 px-4 font-bold text-sm border-b-2 whitespace-nowrap transition-colors ${activeTab === 'categories' ? 'border-slate-900 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>Categories</button>
         <button onClick={() => setActiveTab('menu')} className={`py-2 px-4 font-bold text-sm border-b-2 whitespace-nowrap transition-colors ${activeTab === 'menu' ? 'border-slate-900 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>Menu Items</button>
         <button onClick={() => setActiveTab('coupons')} className={`py-2 px-4 font-bold text-sm border-b-2 whitespace-nowrap transition-colors ${activeTab === 'coupons' ? 'border-slate-900 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>Coupons</button>
         <button onClick={() => setActiveTab('settings')} className={`py-2 px-4 font-bold text-sm border-b-2 whitespace-nowrap transition-colors ${activeTab === 'settings' ? 'border-slate-900 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>Settings</button>
@@ -461,6 +523,7 @@ export default function AdminDashboard() {
                   <th className="px-6 py-3">Orders</th>
                   <th className="px-6 py-3">Total Spent</th>
                   <th className="px-6 py-3">Last Order</th>
+                  <th className="px-6 py-3">Actions</th>
                </tr>
             </thead>
             <tbody className="text-sm">
@@ -474,10 +537,11 @@ export default function AdminDashboard() {
                     <td className="px-6 py-4 font-bold text-slate-900">{c.orderCount}</td>
                     <td className="px-6 py-4 text-emerald-600 font-bold">৳{c.totalSpent.toFixed(2)}</td>
                     <td className="px-6 py-4 text-slate-400 text-xs uppercase tracking-wide">{c.lastOrder ? new Date(c.lastOrder).toLocaleString() : '-'}</td>
+                    <td className="px-6 py-4 text-blue-500 hover:text-blue-700 font-bold cursor-pointer text-xs uppercase tracking-wider" onClick={() => setViewDetailCustomer(c)}>View</td>
                  </tr>
                ))}
                {customers.length === 0 && (
-                 <tr><td colSpan={5} className="px-6 py-10 text-center text-slate-400 text-sm">No customers found.</td></tr>
+                 <tr><td colSpan={6} className="px-6 py-10 text-center text-slate-400 text-sm">No customers found.</td></tr>
                )}
             </tbody>
           </table>
@@ -485,31 +549,106 @@ export default function AdminDashboard() {
       </div>
       )}
 
+      {activeTab === 'categories' && (
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+          <h4 className="font-bold text-slate-900 mb-6">Manage Categories</h4>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+            <input placeholder="Category Name" value={newCategory.name} onChange={e => setNewCategory({...newCategory, name: e.target.value})} className="md:col-span-2 border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-slate-500" />
+            <input type="number" placeholder="Order (e.g. 1)" value={newCategory.order || ''} onChange={e => setNewCategory({...newCategory, order: Number(e.target.value)})} className="border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-slate-500" />
+            <button onClick={addCategory} className="bg-slate-900 text-white rounded px-4 py-2 text-sm font-bold hover:bg-slate-800">Add Category</button>
+          </div>
+          <div className="space-y-4">
+            {categories.map(cat => (
+              <div key={cat.id} className="flex flex-col border-b border-slate-100 pb-4">
+                {editingCategory?.id === cat.id ? (
+                  <div className="flex gap-4 items-center">
+                    <input value={editingCategory.name} onChange={e => setEditingCategory({...editingCategory, name: e.target.value})} className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-slate-500" />
+                    <input type="number" value={editingCategory.order || ''} onChange={e => setEditingCategory({...editingCategory, order: Number(e.target.value)})} className="w-24 border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-slate-500" />
+                    <button onClick={updateCategory} className="bg-emerald-500 text-white rounded px-3 py-1.5 text-xs font-bold hover:bg-emerald-600">Save</button>
+                    <button onClick={() => setEditingCategory(null)} className="text-slate-500 text-xs font-bold hover:underline">Cancel</button>
+                  </div>
+                ) : (
+                  <div className="flex justify-between items-center bg-transparent">
+                    <div>
+                      <div className="font-bold text-slate-900 text-sm">{cat.name}</div>
+                      <div className="text-slate-500 text-xs text-medium">Order: {cat.order}</div>
+                    </div>
+                    <div className="flex gap-3">
+                      <button onClick={() => setEditingCategory(cat)} className="text-blue-500 text-xs font-bold hover:underline">Edit</button>
+                      <button onClick={() => deleteCategory(cat.id)} className="text-rose-500 text-xs font-bold hover:underline">Delete</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+            {categories.length === 0 && <div className="text-slate-500 text-sm text-center py-4">No categories added yet.</div>}
+          </div>
+        </div>
+      )}
+
       {activeTab === 'menu' && (
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
           <h4 className="font-bold text-slate-900 mb-6">Manage Menu Items</h4>
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-6 gap-4 mb-8">
             <input placeholder="Name" value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})} className="border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-slate-500" />
             <input placeholder="Description" value={newItem.description} onChange={e => setNewItem({...newItem, description: e.target.value})} className="border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-slate-500" />
+            <select value={newItem.categoryId} onChange={e => setNewItem({...newItem, categoryId: e.target.value})} className="border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-slate-500 text-slate-700">
+               <option value="">Select Category</option>
+               {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
             <input type="number" placeholder="Price" value={newItem.price || ''} onChange={e => setNewItem({...newItem, price: Number(e.target.value)})} className="border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-slate-500" />
             <input placeholder="Image URL" value={newItem.image} onChange={e => setNewItem({...newItem, image: e.target.value})} className="border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-slate-500" />
             <button onClick={addMenuItem} className="bg-slate-900 text-white rounded px-4 py-2 text-sm font-bold hover:bg-slate-800">Add Item</button>
           </div>
           <div className="space-y-4">
-            {menuItems.map(item => (
-              <div key={item.id} className="flex justify-between items-center border-b border-slate-100 pb-4">
-                <div className="flex gap-4 items-center">
-                  <div className="w-12 h-12 bg-slate-100 rounded overflow-hidden">
-                    {item.image && <img src={item.image} alt={item.name} className="w-full h-full object-cover" />}
-                  </div>
-                  <div>
-                    <div className="font-bold text-slate-900 text-sm">{item.name}</div>
-                    <div className="text-slate-500 text-xs">৳{item.price.toFixed(2)}</div>
-                  </div>
-                </div>
-                <button onClick={() => deleteMenuItem(item.id)} className="text-rose-500 text-xs font-bold hover:underline">Delete</button>
-              </div>
-            ))}
+            {menuItems.map(item => {
+               const itemCat = categories.find(c => c.id === item.categoryId);
+               return (
+                 <div key={item.id} className="flex flex-col border-b border-slate-100 pb-4">
+                   {editingMenuItem?.id === item.id ? (
+                      <div className="flex flex-col gap-3">
+                        <div className="flex gap-4">
+                          <div className="flex-1 space-y-2">
+                             <input value={editingMenuItem.name} onChange={e => setEditingMenuItem({...editingMenuItem, name: e.target.value})} className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-slate-500" placeholder="Name" />
+                             <input value={editingMenuItem.description} onChange={e => setEditingMenuItem({...editingMenuItem, description: e.target.value})} className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-slate-500" placeholder="Description" />
+                          </div>
+                          <div className="flex-1 space-y-2">
+                             <select value={editingMenuItem.categoryId || ''} onChange={e => setEditingMenuItem({...editingMenuItem, categoryId: e.target.value})} className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-slate-500 text-slate-700">
+                               <option value="">Select Category</option>
+                               {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                             </select>
+                             <input type="number" value={editingMenuItem.price || ''} onChange={e => setEditingMenuItem({...editingMenuItem, price: Number(e.target.value)})} className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-slate-500" placeholder="Price" />
+                          </div>
+                        </div>
+                        <div className="flex gap-4 items-center">
+                          <input value={editingMenuItem.image} onChange={e => setEditingMenuItem({...editingMenuItem, image: e.target.value})} className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-slate-500" placeholder="Image URL" />
+                          <button onClick={updateMenuItem} className="bg-emerald-500 text-white rounded px-4 py-2 text-sm font-bold hover:bg-emerald-600">Save</button>
+                          <button onClick={() => setEditingMenuItem(null)} className="text-slate-500 text-sm font-bold hover:underline">Cancel</button>
+                        </div>
+                      </div>
+                   ) : (
+                     <div className="flex justify-between items-center w-full">
+                       <div className="flex gap-4 items-center">
+                         <div className="w-12 h-12 bg-slate-100 rounded overflow-hidden">
+                           {item.image && <img src={item.image || undefined} alt={item.name} className="w-full h-full object-cover" />}
+                         </div>
+                         <div>
+                           <div className="font-bold text-slate-900 text-sm">{item.name}</div>
+                           <div className="flex gap-2 items-center">
+                             <span className="text-slate-500 text-xs font-bold">৳{item.price.toFixed(2)}</span>
+                             {itemCat && <span className="bg-slate-100 text-[10px] text-slate-600 px-2 py-0.5 rounded font-bold">{itemCat.name}</span>}
+                           </div>
+                         </div>
+                       </div>
+                       <div className="flex gap-3">
+                         <button onClick={() => setEditingMenuItem(item)} className="text-blue-500 text-xs font-bold hover:underline">Edit</button>
+                         <button onClick={() => deleteMenuItem(item.id)} className="text-rose-500 text-xs font-bold hover:underline">Delete</button>
+                       </div>
+                     </div>
+                   )}
+                 </div>
+               );
+            })}
           </div>
         </div>
       )}
@@ -538,9 +677,19 @@ export default function AdminDashboard() {
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Max Disc.</label>
               <input type="number" placeholder="None" value={newCoupon.maxDiscount} onChange={e => setNewCoupon({...newCoupon, maxDiscount: Number(e.target.value)})} title="Maximum discount ৳" className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-slate-500" />
             </div>
-            <div className="flex items-center gap-2 text-sm mb-2">
-              <input id="coupon-active-checkbox" type="checkbox" checked={newCoupon.isActive} onChange={e => setNewCoupon({...newCoupon, isActive: e.target.checked})} className="rounded text-slate-900" />
-              <label htmlFor="coupon-active-checkbox" className="font-bold text-slate-700">Active</label>
+            <div className="flex flex-wrap items-center gap-4 text-sm mb-2 md:col-span-6">
+              <div className="flex items-center gap-2">
+                <input id="coupon-active-checkbox" type="checkbox" checked={newCoupon.isActive} onChange={e => setNewCoupon({...newCoupon, isActive: e.target.checked})} className="rounded text-slate-900" />
+                <label htmlFor="coupon-active-checkbox" className="font-bold text-slate-700">Active</label>
+              </div>
+              <div className="flex items-center gap-2">
+                <input id="coupon-repeat-checkbox" type="checkbox" checked={newCoupon.forRepeatCustomersOnly} onChange={e => setNewCoupon({...newCoupon, forRepeatCustomersOnly: e.target.checked, forNewCustomersOnly: false})} className="rounded text-slate-900" />
+                <label htmlFor="coupon-repeat-checkbox" className="font-bold text-slate-700">Repeat Customers Only</label>
+              </div>
+              <div className="flex items-center gap-2">
+                <input id="coupon-new-checkbox" type="checkbox" checked={newCoupon.forNewCustomersOnly} onChange={e => setNewCoupon({...newCoupon, forNewCustomersOnly: e.target.checked, forRepeatCustomersOnly: false})} className="rounded text-slate-900" />
+                <label htmlFor="coupon-new-checkbox" className="font-bold text-slate-700">New Customers Only</label>
+              </div>
             </div>
             <button onClick={addCoupon} className="bg-slate-900 text-white rounded px-4 py-3 text-sm font-bold hover:bg-slate-800 md:col-span-6 mt-2">Add Coupon</button>
           </div>
@@ -549,7 +698,11 @@ export default function AdminDashboard() {
               <div key={coupon.id} className="flex justify-between items-center border-b border-slate-100 pb-4">
                 <div>
                   <div className="font-bold text-slate-900 text-sm">{coupon.code}</div>
-                  <div className="text-emerald-600 font-bold text-xs">{coupon.discountPercentage}% OFF</div>
+                  <div className="flex gap-2 items-center">
+                    <div className="text-emerald-600 font-bold text-xs">{coupon.discountPercentage}% OFF</div>
+                    {coupon.forRepeatCustomersOnly && <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded text-[10px] font-bold">Repeat Only</span>}
+                    {coupon.forNewCustomersOnly && <span className="bg-purple-50 text-purple-600 px-2 py-0.5 rounded text-[10px] font-bold">New Only</span>}
+                  </div>
                   <div className="text-slate-500 text-xs mt-1">
                     {coupon.quantity} uses left • Min: ৳{coupon.minAmount || 0} • Max: ৳{coupon.maxDiscount || 'None'}
                   </div>
@@ -709,6 +862,78 @@ export default function AdminDashboard() {
                     </div>
                  </div>
                )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {viewDetailCustomer && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl my-8 relative flex flex-col">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center sticky top-0 bg-white z-10 rounded-t-2xl">
+              <h3 className="font-bold text-xl text-slate-900">Customer Details</h3>
+              <button onClick={() => setViewDetailCustomer(null)} className="p-2 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-full transition-colors">
+                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+              </button>
+            </div>
+            <div className="p-6 space-y-6">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                  <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mb-1">Name</p>
+                  <p className="font-bold text-slate-900">{viewDetailCustomer.name || 'Anonymous'}</p>
+                </div>
+                <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                  <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mb-1">Email</p>
+                  <p className="font-bold text-slate-900 text-sm overflow-hidden text-ellipsis">{viewDetailCustomer.email}</p>
+                </div>
+                <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                  <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mb-1">Phone</p>
+                  <p className="font-bold text-slate-900">{viewDetailCustomer.phone || '-'}</p>
+                </div>
+                <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                  <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mb-1">Total Spent</p>
+                  <p className="font-bold text-emerald-600 text-lg">৳{viewDetailCustomer.totalSpent.toFixed(2)}</p>
+                </div>
+              </div>
+              
+              <div>
+                <h4 className="font-bold text-lg text-slate-900 mb-4 border-b border-slate-100 pb-2">Order History</h4>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm border-collapse">
+                    <thead className="bg-slate-50 text-[10px] uppercase font-bold text-slate-400">
+                      <tr className="border-b border-slate-100">
+                        <th className="px-4 py-2">Order ID</th>
+                        <th className="px-4 py-2">Date</th>
+                        <th className="px-4 py-2">Total</th>
+                        <th className="px-4 py-2">Status</th>
+                        <th className="px-4 py-2">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {orders.filter(o => o.customerEmail === viewDetailCustomer.email).map(order => (
+                        <tr key={order.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                          <td className="px-4 py-3 font-mono text-xs text-slate-700">#{order.id.slice(0, 8).toUpperCase()}</td>
+                          <td className="px-4 py-3 text-slate-500">{order.createdAt?.toDate().toLocaleString()}</td>
+                          <td className="px-4 py-3 font-bold text-slate-900">৳{order.totalAmount?.toFixed(2)}</td>
+                          <td className="px-4 py-3">
+                            <span className="px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-700">
+                              {order.status}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <button onClick={() => setViewDetailOrder(order)} className="text-blue-500 hover:text-blue-700 font-bold uppercase tracking-wider text-[10px]">
+                              View Details
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                      {orders.filter(o => o.customerEmail === viewDetailCustomer.email).length === 0 && (
+                        <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-400">No orders found.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
           </div>
         </div>

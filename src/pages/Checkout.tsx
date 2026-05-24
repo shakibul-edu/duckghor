@@ -108,7 +108,7 @@ export default function Checkout() {
     if (!couponCode.trim()) return;
     
     try {
-      const { collection, query, where, getDocs } = await import('firebase/firestore');
+      const { collection, query, where, getDocs, getCountFromServer } = await import('firebase/firestore');
       const q = query(collection(db, 'coupons'), where('code', '==', couponCode.trim().toUpperCase()), where('isActive', '==', true));
       const snap = await getDocs(q);
       if (snap.empty) {
@@ -126,6 +126,26 @@ export default function Checkout() {
            setDiscount(null);
            return;
         }
+
+        // Check new/repeat customer rules
+        if (couponData.forRepeatCustomersOnly || couponData.forNewCustomersOnly) {
+           const ordersQ = query(collection(db, 'orders'), where('customerEmail', '==', user.email));
+           const ordersSnap = await getCountFromServer(ordersQ);
+           const orderCount = ordersSnap.data().count;
+
+           if (couponData.forRepeatCustomersOnly && orderCount === 0) {
+              setCouponError('This coupon is only valid for repeat customers.');
+              setDiscount(null);
+              return;
+           }
+
+           if (couponData.forNewCustomersOnly && orderCount > 0) {
+              setCouponError('This coupon is only valid for your first order.');
+              setDiscount(null);
+              return;
+           }
+        }
+
         setDiscount({ 
           code: couponData.code, 
           percent: couponData.discountPercentage,

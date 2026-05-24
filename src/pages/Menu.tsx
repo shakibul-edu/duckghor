@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MOCK_MENU, MenuItem } from '../data/menu';
-import { ShoppingBag, Plus, Minus, Loader2, Star } from 'lucide-react';
+import { MOCK_MENU, MenuItem, Category } from '../data/menu';
+import { ShoppingBag, Plus, Minus, Loader2, Star, ArrowRight } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
 import { db } from '../lib/firebase';
 import { collection, onSnapshot, getDocs, setDoc, doc } from 'firebase/firestore';
+import SEO from '../components/SEO';
 
 export default function Menu() {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [activeCategory, setActiveCategory] = useState<string>('all');
   const [loading, setLoading] = useState(true);
   const { cart, addToCart, removeFromCart, totalItems, totalAmount } = useCart();
   const navigate = useNavigate();
@@ -40,6 +43,10 @@ export default function Menu() {
   }, [selectedItem]);
 
   useEffect(() => {
+    const unsubCategories = onSnapshot(collection(db, 'categories'), snapshot => {
+      setCategories(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Category)).sort((a, b) => (a.order || 0) - (b.order || 0)));
+    });
+
     const unsubscribe = onSnapshot(collection(db, 'menuItems'), snapshot => {
       if (snapshot.empty && isAdmin) {
         // Seed database
@@ -56,7 +63,10 @@ export default function Menu() {
       setLoading(false);
     });
     
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      unsubCategories();
+    };
   }, [isAdmin]);
 
   const handleCheckout = () => {
@@ -67,24 +77,51 @@ export default function Menu() {
     navigate('/checkout', { state: { cart, totalAmount } });
   };
 
+  const filteredItems = activeCategory === 'all' ? menuItems : menuItems.filter(i => i.categoryId === activeCategory);
+
   return (
-    <div className="flex flex-col lg:flex-row gap-8 relative">
+    <div className="flex flex-col lg:flex-row gap-8 relative pb-12">
+      <SEO 
+        title="Our Menu | Duckঘর Delivery" 
+        description="Browse our extensive menu of premium duck dishes and authentic delicacies."
+        url={window.location.href}
+      />
       <div className="flex-1">
-        <div className="mb-8">
+        <div className="mb-4">
           <h1 className="text-4xl font-bold tracking-tight text-slate-900 mb-2">Our Menu</h1>
-          <p className="text-slate-500 text-lg">Delicious meals delivered hot and fresh to your door.</p>
+          <p className="text-slate-500 text-lg">Delicious premium duck meals delivered hot and fresh to your door.</p>
         </div>
+
+        {categories.length > 0 && (
+          <div className="flex gap-3 overflow-x-auto pb-4 mb-6 custom-scrollbar">
+            <button 
+              onClick={() => setActiveCategory('all')} 
+              className={`px-5 py-2 rounded-full whitespace-nowrap font-bold text-sm transition-colors ${activeCategory === 'all' ? 'bg-amber-500 text-slate-900' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+            >
+              All Items
+            </button>
+            {categories.map(cat => (
+              <button 
+                key={cat.id}
+                onClick={() => setActiveCategory(cat.id)}
+                className={`px-5 py-2 rounded-full whitespace-nowrap font-bold text-sm transition-colors ${activeCategory === cat.id ? 'bg-amber-500 text-slate-900' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+              >
+                {cat.name}
+              </button>
+            ))}
+          </div>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
           {loading ? (
             <div className="col-span-full flex justify-center py-20"><Loader2 className="animate-spin text-slate-400" size={32} /></div>
-          ) : menuItems.map(item => {
+          ) : filteredItems.map(item => {
             const cartItem = cart.find(c => c.item.id === item.id);
             return (
               <div key={item.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition-shadow flex flex-col">
-                <div onClick={() => setSelectedItem(item)} className="cursor-pointer">
+                <div onClick={() => navigate(`/menu/${encodeURIComponent(item.name.toLowerCase().replace(/ /g, '-'))}`)} className="cursor-pointer flex-1 flex flex-col group">
                   <div className="h-48 overflow-hidden relative">
-                    <img src={item.image} alt={item.name} className="w-full h-full object-cover hover:scale-105 transition-transform duration-500" />
+                    <img src={item.image || undefined} alt={item.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                     {((item as any).reviewCount > 0) && (
                       <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm px-2.5 py-1 rounded-full text-xs font-bold text-slate-900 flex items-center gap-1 shadow-sm">
                         <Star size={12} className="text-amber-500 fill-amber-500" /> {((item as any).rating || 5).toFixed(1)}
@@ -94,10 +131,10 @@ export default function Menu() {
                   </div>
                   <div className="p-5 pb-0 flex-1 flex flex-col">
                     <div className="flex justify-between items-start mb-2">
-                      <h3 className="font-semibold text-lg text-slate-900 hover:text-amber-500 transition-colors">{item.name}</h3>
+                      <h3 className="font-semibold text-lg text-slate-900 group-hover:text-amber-500 transition-colors">{item.name}</h3>
                       <span className="font-bold text-amber-500">৳{item.price.toFixed(2)}</span>
                     </div>
-                    <p className="text-sm text-slate-500 mb-4 flex-1">{item.description}</p>
+                    <p className="text-sm text-slate-500 mb-4 flex-1 line-clamp-3">{item.description}</p>
                   </div>
                 </div>
                 <div className="p-5 pt-0 mt-auto">
@@ -167,7 +204,7 @@ export default function Menu() {
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col md:flex-row animate-in fade-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
             {/* Image side */}
             <div className="md:w-1/2 md:h-full relative hidden md:block shrink-0 bg-slate-100">
-              <img src={selectedItem.image} alt={selectedItem.name} className="w-full h-full object-cover absolute inset-0" />
+              <img src={selectedItem.image || undefined} alt={selectedItem.name} className="w-full h-full object-cover absolute inset-0" />
             </div>
             
             {/* Content side */}

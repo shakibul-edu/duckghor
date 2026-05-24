@@ -77,7 +77,7 @@ export default function Layout() {
                   <div className="flex items-center gap-4 ml-4 border-l border-slate-200 pl-4">
                     <div className="flex items-center gap-2">
                       {user.photoURL ? (
-                        <img src={user.photoURL} alt="Profile" className="w-8 h-8 rounded-full border border-slate-200" />
+                        <img src={user.photoURL || undefined} alt="Profile" className="w-8 h-8 rounded-full border border-slate-200" />
                       ) : (
                         <div className="bg-slate-100 p-1 rounded-full border border-slate-200"><UserIcon size={20} className="text-slate-400" /></div>
                       )}
@@ -151,7 +151,7 @@ export default function Layout() {
                     <div className="border-t border-slate-100 pt-4 flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         {user.photoURL ? (
-                          <img src={user.photoURL} alt="Profile" className="w-8 h-8 rounded-full border border-slate-200" />
+                          <img src={user.photoURL || undefined} alt="Profile" className="w-8 h-8 rounded-full border border-slate-200" />
                         ) : (
                           <div className="bg-slate-100 p-1 rounded-full"><UserIcon size={20} className="text-slate-400" /></div>
                         )}

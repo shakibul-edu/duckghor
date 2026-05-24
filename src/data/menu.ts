@@ -4,6 +4,13 @@ export interface MenuItem {
   description: string;
   price: number;
   image: string;
+  categoryId?: string;
+}
+
+export interface Category {
+  id: string;
+  name: string;
+  order?: number;
 }
 
 export const MOCK_MENU: MenuItem[] = [
