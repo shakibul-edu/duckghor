@@ -4,9 +4,10 @@ import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { MapPin, Loader2, ArrowLeft, AlertCircle } from 'lucide-react';
+import { MapPin, Loader2, ArrowLeft, AlertCircle, CheckCircle } from 'lucide-react';
 import { MenuItem } from '../data/menu';
 import { calculateDistance } from '../lib/utils';
+import { motion, AnimatePresence } from 'motion/react';
 
 export default function Checkout() {
   const { user, loading: authLoading } = useAuth();
@@ -24,6 +25,7 @@ export default function Checkout() {
   const [address, setAddress] = useState<string>('');
   const [customerName, setCustomerName] = useState(user?.displayName || '');
   const [customerPhone, setCustomerPhone] = useState('');
+  const [orderNotes, setOrderNotes] = useState('');
   const [locError, setLocError] = useState<string>('');
   const [distance, setDistance] = useState<number | null>(null);
   const [deliveryFee, setDeliveryFee] = useState<number>(0);
@@ -32,8 +34,9 @@ export default function Checkout() {
 
   // New logic for coupons
   const [couponCode, setCouponCode] = useState('');
-  const [discount, setDiscount] = useState<{ code: string; percent: number } | null>(null);
+  const [discount, setDiscount] = useState<{ code: string; percent: number; minAmount: number; maxDiscount: number; id: string } | null>(null);
   const [couponError, setCouponError] = useState('');
+  const [couponSuccess, setCouponSuccess] = useState('');
   
   const [storeSettings, setStoreSettings] = useState({ lat: 23.8103, lng: 90.4125, maxDeliveryDistance: 5 });
 
@@ -106,14 +109,32 @@ export default function Checkout() {
     
     try {
       const { collection, query, where, getDocs } = await import('firebase/firestore');
-      const q = query(collection(db, 'coupons'), where('code', '==', couponCode.trim()), where('isActive', '==', true));
+      const q = query(collection(db, 'coupons'), where('code', '==', couponCode.trim().toUpperCase()), where('isActive', '==', true));
       const snap = await getDocs(q);
       if (snap.empty) {
         setCouponError('Invalid or expired coupon');
         setDiscount(null);
       } else {
         const couponData = snap.docs[0].data();
-        setDiscount({ code: couponData.code, percent: couponData.discountPercentage });
+        if (couponData.quantity !== undefined && couponData.quantity <= 0) {
+           setCouponError('Coupon usage limit reached');
+           setDiscount(null);
+           return;
+        }
+        if (couponData.minAmount !== undefined && state.totalAmount < couponData.minAmount) {
+           setCouponError(`Minimum order amount of ৳${couponData.minAmount} is required`);
+           setDiscount(null);
+           return;
+        }
+        setDiscount({ 
+          code: couponData.code, 
+          percent: couponData.discountPercentage,
+          minAmount: couponData.minAmount || 0,
+          maxDiscount: couponData.maxDiscount || Infinity,
+          id: snap.docs[0].id
+        });
+        setCouponSuccess(`Coupon ${couponData.code} applied successfully!`);
+        setTimeout(() => setCouponSuccess(''), 3000);
       }
     } catch (err) {
       console.error(err);
@@ -129,32 +150,53 @@ export default function Checkout() {
     }
     setLoading(true);
 
-    const discountAmount = discount ? (state.totalAmount * discount.percent) / 100 : 0;
+    const discountAmount = calcDiscountAmount();
     const finalAmount = state.totalAmount - discountAmount + deliveryFee;
 
     try {
+      const { runTransaction, doc } = await import('firebase/firestore');
       const orderRef = doc(db, 'orders', crypto.randomUUID());
-      await setDoc(orderRef, {
-        customerId: user.uid,
-        customerName: customerName.trim(),
-        customerPhone: customerPhone.trim(),
-        customerEmail: user.email || '',
-        status: 'Pending Confirmation',
-        paymentStatus: 'Pending',
-        totalAmount: finalAmount,
-        originalAmount: state.totalAmount,
-        discountApplied: discountAmount,
-        deliveryFee: deliveryFee,
-        couponCode: discount ? discount.code : null,
-        location: { ...coords, address },
-        items: state.cart.map(c => ({
-          id: c.item.id,
-          name: c.item.name,
-          price: c.item.price,
-          quantity: c.quantity
-        })),
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
+      
+      await runTransaction(db, async (transaction) => {
+         // Decrement coupon if it has quantity limits
+         if (discount && discount.id) {
+           const couponRef = doc(db, 'coupons', discount.id);
+           const couponSnap = await transaction.get(couponRef);
+           if (couponSnap.exists()) {
+              const currentQuantity = couponSnap.data().quantity;
+              if (currentQuantity !== undefined) {
+                 if (currentQuantity <= 0) {
+                    throw new Error("Coupon is no longer available.");
+                 }
+                 transaction.update(couponRef, { quantity: currentQuantity - 1 });
+              }
+           }
+         }
+         
+         transaction.set(orderRef, {
+           customerId: user.uid,
+           customerName: customerName.trim(),
+           customerPhone: customerPhone.trim(),
+           customerEmail: user.email || '',
+           status: 'Pending Confirmation',
+           paymentStatus: 'Pending',
+           orderNotes: orderNotes.trim(),
+           statusHistory: [{ status: 'Pending Confirmation', timestamp: new Date().toISOString() }],
+           totalAmount: finalAmount,
+           originalAmount: state.totalAmount,
+           discountApplied: discountAmount,
+           deliveryFee: deliveryFee,
+           couponCode: discount ? discount.code : null,
+           location: { ...coords, address },
+           items: state.cart.map(c => ({
+             id: c.item.id,
+             name: c.item.name,
+             price: c.item.price,
+             quantity: c.quantity
+           })),
+           createdAt: serverTimestamp(),
+           updatedAt: serverTimestamp()
+         });
       });
       
       (window as any).fbq?.('track', 'Purchase', {
@@ -165,10 +207,24 @@ export default function Checkout() {
       
       clearCart();
       navigate('/orders');
-    } catch (err) {
+    } catch (err: any) {
+      if (err.message === "Coupon is no longer available.") {
+         setCouponError("Coupon is no longer available.");
+         setDiscount(null);
+         setLoading(false);
+         return;
+      }
       handleFirestoreError(err, OperationType.CREATE, 'orders');
       setLoading(false);
     }
+  };
+
+  const calcDiscountAmount = () => {
+    if (!discount) return 0;
+    const computed = (state.totalAmount * discount.percent) / 100;
+    return discount.maxDiscount && discount.maxDiscount > 0
+      ? Math.min(computed, discount.maxDiscount)
+      : computed;
   };
 
   if (authLoading) {
@@ -178,7 +234,21 @@ export default function Checkout() {
   if (!state || !user) return null;
 
   return (
-    <div className="max-w-3xl mx-auto w-full">
+    <div className="max-w-3xl mx-auto w-full relative">
+      <AnimatePresence>
+        {couponSuccess && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="fixed top-24 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-slate-900 text-white px-6 py-3 rounded-full shadow-2xl font-medium text-sm"
+          >
+            <CheckCircle size={18} className="text-emerald-400" />
+            {couponSuccess}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-slate-500 mb-8 hover:text-slate-900 transition-colors text-sm font-medium">
         <ArrowLeft size={18} /> Back to menu
       </button>
@@ -243,16 +313,28 @@ export default function Checkout() {
                placeholder="Street address, apartment, city..."
              ></textarea>
           </div>
+          <div className="sm:col-span-2">
+             <label className="block text-sm font-medium text-slate-700 mb-1">Order Notes (Optional)</label>
+             <textarea 
+               value={orderNotes} 
+               onChange={e => setOrderNotes(e.target.value)} 
+               className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-slate-500 min-h-[60px]" 
+               placeholder="Special instructions for the kitchen or driver..."
+             ></textarea>
+          </div>
         </div>
 
         {!coords ? (
-          <div className="text-center py-6 bg-slate-50 rounded-lg border border-slate-100">
-            <p className="text-slate-500 mb-4 text-sm">We need your location to deliver your food.</p>
+          <div className="text-center py-8 px-4 bg-amber-50 rounded-xl border border-amber-200">
+            <div className="bg-amber-100 text-amber-600 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
+              <MapPin size={24} />
+            </div>
+            <p className="text-slate-700 font-medium mb-4 text-sm max-w-xs mx-auto">We need your location to verify delivery range and calculate delivery fee.</p>
             <button 
               onClick={getLocation} 
-              className="px-6 py-2 bg-slate-200 text-slate-800 text-sm font-bold rounded hover:bg-slate-300 transition-colors"
+              className="px-8 py-3.5 bg-amber-500 text-slate-900 text-sm font-bold rounded-xl hover:bg-amber-400 transition-all hover:scale-105 active:scale-95 shadow-md flex items-center justify-center gap-2 mx-auto"
             >
-              Share Location
+              <MapPin size={18} /> Enable Location to Continue
             </button>
             {locError && <p className="text-rose-500 text-xs mt-3">{locError}</p>}
           </div>
@@ -301,8 +383,8 @@ export default function Checkout() {
         </div>
         {discount && (
            <div className="flex justify-between font-bold text-emerald-600 mt-2">
-             <span>Discount ({discount.percent}%)</span>
-             <span>-৳{((state.totalAmount * discount.percent) / 100).toFixed(2)}</span>
+             <span>Discount ({discount.percent}%) {discount.maxDiscount > 0 && calcDiscountAmount() === discount.maxDiscount && '(Max Applied)'}</span>
+             <span>-৳{calcDiscountAmount().toFixed(2)}</span>
            </div>
         )}
         {distance !== null && !outOfZone ? (
@@ -318,7 +400,7 @@ export default function Checkout() {
         )}
         <div className="flex justify-between font-bold text-2xl pt-4 border-t border-slate-200 text-slate-900 mt-4">
           <span>Total</span>
-          <span>৳{(state.totalAmount - (discount ? (state.totalAmount * discount.percent) / 100 : 0)).toFixed(2)} {deliveryFee > 0 ? `+ ৳${deliveryFee}` : ''}</span>
+          <span>৳{(state.totalAmount - calcDiscountAmount()).toFixed(2)} {deliveryFee > 0 ? `+ ৳${deliveryFee}` : ''}</span>
         </div>
       </div>
 

@@ -23,7 +23,7 @@ service cloud.firestore {
       return data.keys().hasAll(['customerId', 'customerEmail', 'status', 'totalAmount', 'location', 'items', 'createdAt', 'updatedAt'])
         && data.customerId == request.auth.uid
         && data.customerEmail is string && data.customerEmail.size() <= 256
-        && data.status is string && data.status in ['Pending Confirmation', 'Shipped', 'Paid', 'Delivered']
+        && data.status is string && data.status in ['Pending Confirmation', 'Preparing', 'Out for Delivery', 'Delivered', 'Cancelled']
         && data.totalAmount is number
         && data.items is list
         && data.location is map
@@ -47,9 +47,9 @@ service cloud.firestore {
       allow update: if isValidId(orderId)
         && (
           (isAdmin()
-            && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+            && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt', 'paymentStatus', 'statusHistory'])
             && incoming().updatedAt == request.time
-            && incoming().status is string && incoming().status in ['Pending Confirmation', 'Shipped', 'Paid', 'Delivered']
+            && incoming().status in ['Pending Confirmation', 'Preparing', 'Out for Delivery', 'Delivered', 'Cancelled']
           ) || (
             isSignedIn() && existing().customerId == request.auth.uid
             && incoming().diff(existing()).affectedKeys().hasOnly(['reviewed', 'updatedAt'])
@@ -71,12 +71,12 @@ service cloud.firestore {
     
     match /menuItems/{itemId} {
       allow read: if true;
-      allow update: if true;
       allow write: if isAdmin();
     }
     
     match /coupons/{couponId} {
       allow read: if true;
+      allow update: if isAdmin() || (incoming().diff(existing()).affectedKeys().hasOnly(['quantity']) && incoming().quantity == existing().quantity - 1 && existing().quantity > 0);
       allow write: if isAdmin();
     }
     match /settings/{settingId} {

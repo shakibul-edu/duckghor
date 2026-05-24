@@ -9,7 +9,7 @@ export default function AdminDashboard() {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [dbError, setDbError] = useState<string | null>(null);
-  const [stats, setStats] = useState({ totalOrders: 0, revenue: 0, pending: 0, active: 0, paid: 0 });
+  const [stats, setStats] = useState({ totalOrders: 0, revenue: 0, pendingRevenue: 0, pending: 0, active: 0, paid: 0 });
   const [activeTab, setActiveTab] = useState<'orders' | 'menu' | 'coupons' | 'customers' | 'settings'>('orders');
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
   const [filteredRevenue, setFilteredRevenue] = useState(0);
@@ -22,7 +22,7 @@ export default function AdminDashboard() {
   const [menuItems, setMenuItems] = useState<any[]>([]);
   const [coupons, setCoupons] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
-  const [newCoupon, setNewCoupon] = useState({ code: '', discountPercentage: 10, isActive: true });
+  const [newCoupon, setNewCoupon] = useState({ code: '', discountPercentage: 10, isActive: true, quantity: 100, minAmount: 0, maxDiscount: 0 });
   const [newItem, setNewItem] = useState({ name: '', description: '', price: 0, image: '' });
 
   useEffect(() => {
@@ -36,16 +36,9 @@ export default function AdminDashboard() {
       docs.sort((a: any, b: any) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
       setOrders(docs);
       
-      let rev = 0;
-      let p = 0; let a = 0; let pa = 0;
       const custs = new Map();
 
       docs.forEach(current => {
-        rev += (current.totalAmount || 0);
-        if (current.status === 'Pending Confirmation') p++;
-        if (['Cooking', 'Ready', 'Out for Delivery'].includes(current.status)) a++;
-        if (current.paymentStatus === 'Paid') pa++;
-
         if (current.customerId) {
           const c = custs.get(current.customerId) || { id: current.customerId, name: current.customerName, email: current.customerEmail, phone: current.customerPhone, totalSpent: 0, orderCount: 0, lastOrder: null };
           c.totalSpent += (current.totalAmount || 0);
@@ -58,7 +51,6 @@ export default function AdminDashboard() {
         }
       });
 
-      setStats({ totalOrders: docs.length, revenue: rev, pending: p, active: a, paid: pa });
       setCustomers(Array.from(custs.values()).sort((a,b) => b.totalSpent - a.totalSpent));
       setLoading(false);
       setDbError(null);
@@ -101,26 +93,41 @@ export default function AdminDashboard() {
     if (!orders.length) {
       setFilteredRevenue(0);
       setFilteredOrders([]);
+      setStats({ totalOrders: 0, revenue: 0, pendingRevenue: 0, pending: 0, active: 0, paid: 0 });
       return;
     }
     let rev = 0;
+    let pendingRev = 0;
+    let p = 0; let a = 0; let pa = 0;
     const start = dateRange.start ? new Date(dateRange.start).setHours(0,0,0,0) : null;
     const end = dateRange.end ? new Date(dateRange.end).setHours(23,59,59,999) : null;
     const filtered: any[] = [];
 
     orders.forEach(o => {
-      const orderTime = o.createdAt?.toMillis();
-      if (!orderTime) return;
+      const orderTime = o.createdAt?.toMillis?.() || Date.now();
       if (start && orderTime < start) return;
       if (end && orderTime > end) return;
-      rev += (o.totalAmount || 0);
+      
+      if (o.status !== 'Cancelled') {
+        if (o.paymentStatus === 'Paid') {
+          rev += (o.totalAmount || 0);
+        } else {
+          pendingRev += (o.totalAmount || 0);
+        }
+      }
+      
+      if (o.status === 'Pending Confirmation') p++;
+      if (['Preparing', 'Out for Delivery'].includes(o.status)) a++;
+      if (o.paymentStatus === 'Paid') pa++;
       filtered.push(o);
     });
     setFilteredRevenue(rev);
     setFilteredOrders(filtered);
+    setStats({ totalOrders: filtered.length, revenue: rev, pendingRevenue: pendingRev, pending: p, active: a, paid: pa });
   }, [dateRange, orders]);
 
   const saveSettings = async () => {
+    if (!isAdmin) return;
     setSavingSettings(true);
     try {
        const { setDoc, doc } = await import('firebase/firestore');
@@ -135,11 +142,12 @@ export default function AdminDashboard() {
   };
 
   const addCoupon = async () => {
+    if (!isAdmin) return;
     if (!newCoupon.code.trim()) return;
     try {
       import('firebase/firestore').then(({ setDoc, doc }) => {
         setDoc(doc(db, 'coupons', newCoupon.code.trim()), newCoupon);
-        setNewCoupon({ code: '', discountPercentage: 10, isActive: true });
+        setNewCoupon({ code: '', discountPercentage: 10, isActive: true, quantity: 100, minAmount: 0, maxDiscount: 0 });
       });
     } catch (e) {
       console.error(e);
@@ -147,6 +155,7 @@ export default function AdminDashboard() {
   };
 
   const toggleCoupon = async (id: string, currentStatus: boolean) => {
+    if (!isAdmin) return;
     try {
        import('firebase/firestore').then(({ updateDoc, doc }) => {
          updateDoc(doc(db, 'coupons', id), { isActive: !currentStatus });
@@ -157,6 +166,7 @@ export default function AdminDashboard() {
   };
 
   const addMenuItem = async () => {
+    if (!isAdmin) return;
     if (!newItem.name.trim() || !newItem.price) return;
     try {
        import('firebase/firestore').then(({ doc, setDoc }) => {
@@ -170,6 +180,7 @@ export default function AdminDashboard() {
   };
 
   const deleteMenuItem = async (id: string) => {
+    if (!isAdmin) return;
     try {
        import('firebase/firestore').then(({ doc, deleteDoc }) => {
          deleteDoc(doc(db, 'menuItems', id));
@@ -180,10 +191,13 @@ export default function AdminDashboard() {
   };
 
   const updateStatus = async (orderId: string, newStatus: string) => {
+    if (!isAdmin) return;
     try {
+      const { arrayUnion } = await import('firebase/firestore');
       const orderRef = doc(db, 'orders', orderId);
       await updateDoc(orderRef, {
         status: newStatus,
+        statusHistory: arrayUnion({ status: newStatus, timestamp: new Date().toISOString() }),
         updatedAt: serverTimestamp()
       });
     } catch (err) {
@@ -192,6 +206,7 @@ export default function AdminDashboard() {
   };
 
   const updatePaymentStatus = async (orderId: string, newPaymentStatus: string) => {
+    if (!isAdmin) return;
     try {
       const orderRef = doc(db, 'orders', orderId);
       await updateDoc(orderRef, {
@@ -233,7 +248,7 @@ export default function AdminDashboard() {
     <div className="max-w-6xl mx-auto w-full">
       <h1 className="text-2xl font-bold tracking-tight mb-8 text-slate-900">Admin Dashboard</h1>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 flex flex-col justify-center">
           <div className="flex justify-between items-start">
             <div>
@@ -246,10 +261,19 @@ export default function AdminDashboard() {
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 flex flex-col justify-center">
           <div className="flex justify-between items-start">
             <div>
-              <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mb-1">Total Revenue</p>
+              <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mb-1">Paid Revenue</p>
               <h3 className="text-3xl font-bold text-slate-900">৳{stats.revenue.toFixed(2)}</h3>
             </div>
             <div className="bg-emerald-100 p-2 rounded-lg text-emerald-600"><DollarSign size={20} /></div>
+          </div>
+        </div>
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 flex flex-col justify-center">
+          <div className="flex justify-between items-start">
+            <div>
+              <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mb-1">Pending Revenue</p>
+              <h3 className="text-3xl font-bold text-slate-900">৳{stats.pendingRevenue.toFixed(2)}</h3>
+            </div>
+            <div className="bg-amber-100 p-2 rounded-lg text-amber-600"><DollarSign size={20} /></div>
           </div>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 flex flex-col justify-center lg:col-span-1">
@@ -372,7 +396,7 @@ export default function AdminDashboard() {
                     <span className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${
                       order.status === 'Delivered' ? 'bg-slate-100 text-slate-700' : 
                       order.status === 'Out for Delivery' ? 'bg-blue-100 text-blue-700' :
-                      order.status === 'Ready' ? 'bg-emerald-100 text-emerald-700' :
+                      order.status === 'Preparing' ? 'bg-amber-100 text-amber-700' :
                       order.status === 'Cancelled' ? 'bg-rose-100 text-rose-700' :
                       'bg-amber-100 text-amber-700'
                     }`}>
@@ -393,8 +417,7 @@ export default function AdminDashboard() {
                         className="bg-white border text-xs font-medium border-slate-200 rounded px-2 py-1.5 focus:ring-1 focus:ring-slate-400 focus:outline-none text-slate-700"
                       >
                         <option value="Pending Confirmation">Pending Confirmation</option>
-                        <option value="Cooking">Cooking</option>
-                        <option value="Ready">Ready</option>
+                        <option value="Preparing">Preparing</option>
                         <option value="Out for Delivery">Out for Delivery</option>
                         <option value="Delivered">Delivered</option>
                         <option value="Cancelled">Cancelled</option>
@@ -494,14 +517,32 @@ export default function AdminDashboard() {
       {activeTab === 'coupons' && (
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
           <h4 className="font-bold text-slate-900 mb-6">Manage Coupons</h4>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-            <input placeholder="Coupon Code (e.g. SUMMER20)" value={newCoupon.code} onChange={e => setNewCoupon({...newCoupon, code: e.target.value.toUpperCase()})} className="border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-slate-500" />
-            <input type="number" placeholder="Discount %" value={newCoupon.discountPercentage} onChange={e => setNewCoupon({...newCoupon, discountPercentage: Number(e.target.value)})} className="border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-slate-500" />
-            <div className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={newCoupon.isActive} onChange={e => setNewCoupon({...newCoupon, isActive: e.target.checked})} className="rounded text-slate-900" />
-              <label>Active initially</label>
+          <div className="grid grid-cols-1 md:grid-cols-6 gap-4 mb-8 items-end">
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Code</label>
+              <input placeholder="e.g. SUMMER" value={newCoupon.code} onChange={e => setNewCoupon({...newCoupon, code: e.target.value.toUpperCase()})} className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-slate-500" />
             </div>
-            <button onClick={addCoupon} className="bg-slate-900 text-white rounded px-4 py-2 text-sm font-bold hover:bg-slate-800">Add Coupon</button>
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Discount %</label>
+              <input type="number" placeholder="10" value={newCoupon.discountPercentage} onChange={e => setNewCoupon({...newCoupon, discountPercentage: Number(e.target.value)})} className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-slate-500" />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Uses</label>
+              <input type="number" placeholder="100" value={newCoupon.quantity} onChange={e => setNewCoupon({...newCoupon, quantity: Number(e.target.value)})} title="Total uses" className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-slate-500" />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Min Spend</label>
+              <input type="number" placeholder="0" value={newCoupon.minAmount} onChange={e => setNewCoupon({...newCoupon, minAmount: Number(e.target.value)})} title="Minimum spend" className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-slate-500" />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Max Disc.</label>
+              <input type="number" placeholder="None" value={newCoupon.maxDiscount} onChange={e => setNewCoupon({...newCoupon, maxDiscount: Number(e.target.value)})} title="Maximum discount ৳" className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-slate-500" />
+            </div>
+            <div className="flex items-center gap-2 text-sm mb-2">
+              <input id="coupon-active-checkbox" type="checkbox" checked={newCoupon.isActive} onChange={e => setNewCoupon({...newCoupon, isActive: e.target.checked})} className="rounded text-slate-900" />
+              <label htmlFor="coupon-active-checkbox" className="font-bold text-slate-700">Active</label>
+            </div>
+            <button onClick={addCoupon} className="bg-slate-900 text-white rounded px-4 py-3 text-sm font-bold hover:bg-slate-800 md:col-span-6 mt-2">Add Coupon</button>
           </div>
           <div className="space-y-4">
             {coupons.map(coupon => (
@@ -509,6 +550,9 @@ export default function AdminDashboard() {
                 <div>
                   <div className="font-bold text-slate-900 text-sm">{coupon.code}</div>
                   <div className="text-emerald-600 font-bold text-xs">{coupon.discountPercentage}% OFF</div>
+                  <div className="text-slate-500 text-xs mt-1">
+                    {coupon.quantity} uses left • Min: ৳{coupon.minAmount || 0} • Max: ৳{coupon.maxDiscount || 'None'}
+                  </div>
                 </div>
                 <div className="flex items-center gap-4">
                   <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider ${coupon.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
@@ -565,6 +609,12 @@ export default function AdminDashboard() {
                     <p className="font-bold text-slate-900">{viewDetailOrder.customerName || 'Anonymous'}</p>
                     <p className="text-sm text-slate-600">{viewDetailOrder.customerEmail}</p>
                     <p className="text-sm text-slate-600">{viewDetailOrder.customerPhone || 'No phone'}</p>
+                    {viewDetailOrder.orderNotes && (
+                      <div className="mt-3 pt-3 border-t border-slate-200">
+                        <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mb-1">Notes</p>
+                        <p className="text-sm text-slate-700 italic border-l-2 border-slate-300 pl-2">{viewDetailOrder.orderNotes}</p>
+                      </div>
+                    )}
                   </div>
                   <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
                     <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mb-1">Status</p>
@@ -577,8 +627,7 @@ export default function AdminDashboard() {
                       className="bg-white border text-sm font-bold border-slate-200 rounded px-3 py-2 w-full mt-1 focus:outline-none mb-2"
                     >
                       <option value="Pending Confirmation">Pending Confirmation</option>
-                        <option value="Cooking">Cooking</option>
-                        <option value="Ready">Ready</option>
+                        <option value="Preparing">Preparing</option>
                         <option value="Out for Delivery">Out for Delivery</option>
                         <option value="Delivered">Delivered</option>
                         <option value="Cancelled">Cancelled</option>
@@ -599,25 +648,51 @@ export default function AdminDashboard() {
                   </div>
                </div>
                
-               <div>
-                  <h4 className="font-bold text-sm text-slate-900 mb-3">Order Items</h4>
-                  <div className="bg-slate-50 rounded-xl border border-slate-100 overflow-hidden">
-                    {viewDetailOrder.items?.map((item: any, i: number) => (
-                      <div key={i} className="flex justify-between items-center p-3 border-b border-slate-100 last:border-0 text-sm">
-                        <span className="text-slate-700">{item.quantity}x {item.name}</span>
-                        <span className="font-bold text-slate-900">৳{(item.price * item.quantity).toFixed(2)}</span>
-                      </div>
-                    ))}
-                    <div className="p-3 bg-slate-100 border-t border-slate-200 flex flex-col gap-1 text-sm text-right">
-                       {viewDetailOrder.discountApplied > 0 && (
-                          <div className="text-emerald-600">Discount ({viewDetailOrder.couponCode}): -৳{viewDetailOrder.discountApplied.toFixed(2)}</div>
-                       )}
-                       {viewDetailOrder.deliveryFee > 0 && (
-                          <div className="text-slate-600">Delivery Fee: +৳{viewDetailOrder.deliveryFee.toFixed(2)}</div>
-                       )}
-                       <div className="font-black text-slate-900 text-lg mt-1">Total: ৳{viewDetailOrder.totalAmount?.toFixed(2)}</div>
-                    </div>
-                  </div>
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                 <div>
+                   <h4 className="font-bold text-sm text-slate-900 mb-3">Order Items</h4>
+                   <div className="bg-slate-50 rounded-xl border border-slate-100 overflow-hidden">
+                     {viewDetailOrder.items?.map((item: any, i: number) => (
+                       <div key={i} className="flex justify-between items-center p-3 border-b border-slate-100 last:border-0 text-sm">
+                         <span className="text-slate-700">{item.quantity}x {item.name}</span>
+                         <span className="font-bold text-slate-900">৳{(item.price * item.quantity).toFixed(2)}</span>
+                       </div>
+                     ))}
+                     <div className="p-3 bg-slate-100 border-t border-slate-200 flex flex-col gap-1 text-sm text-right">
+                        {viewDetailOrder.discountApplied > 0 && (
+                           <div className="text-emerald-600">Discount ({viewDetailOrder.couponCode}): -৳{viewDetailOrder.discountApplied.toFixed(2)}</div>
+                        )}
+                        {viewDetailOrder.deliveryFee > 0 && (
+                           <div className="text-slate-600">Delivery Fee: +৳{viewDetailOrder.deliveryFee.toFixed(2)}</div>
+                        )}
+                        <div className="font-black text-slate-900 text-lg mt-1">Total: ৳{viewDetailOrder.totalAmount?.toFixed(2)}</div>
+                     </div>
+                   </div>
+                 </div>
+
+                 <div>
+                   <h4 className="font-bold text-sm text-slate-900 mb-3">Status Timeline</h4>
+                   <div className="bg-slate-50 rounded-xl border border-slate-100 p-4">
+                     {viewDetailOrder.statusHistory && viewDetailOrder.statusHistory.length > 0 ? (
+                       <div className="space-y-4">
+                         {viewDetailOrder.statusHistory.map((historyItem: any, i: number) => (
+                           <div key={i} className="flex gap-4 relative">
+                              {i !== viewDetailOrder.statusHistory.length - 1 && (
+                                <div className="absolute top-6 left-1.5 bottom-[-16px] w-[2px] bg-slate-200"></div>
+                              )}
+                              <div className="w-3 h-3 rounded-full bg-amber-500 mt-1 shrink-0 z-10"></div>
+                              <div>
+                                <p className="font-bold text-slate-900 text-sm">{historyItem.status}</p>
+                                <p className="text-xs text-slate-500">{new Date(historyItem.timestamp).toLocaleString()}</p>
+                              </div>
+                           </div>
+                         ))}
+                       </div>
+                     ) : (
+                       <p className="text-sm text-slate-500 italic">No timeline available for older orders.</p>
+                     )}
+                   </div>
+                 </div>
                </div>
 
                {viewDetailOrder.location?.lat && viewDetailOrder.location?.lng && (

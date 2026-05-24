@@ -128,7 +128,7 @@ export default function Orders() {
                       <span className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${
                         order.status === 'Delivered' ? 'bg-slate-100 text-slate-700' : 
                         order.status === 'Out for Delivery' ? 'bg-blue-100 text-blue-700' :
-                        order.status === 'Ready' ? 'bg-emerald-100 text-emerald-700' :
+                        order.status === 'Preparing' ? 'bg-amber-100 text-amber-700' :
                         order.status === 'Cancelled' ? 'bg-rose-100 text-rose-700' :
                         'bg-amber-100 text-amber-700'
                       }`}>
@@ -150,12 +150,12 @@ export default function Orders() {
                   <div className="w-full sm:w-64 mt-2 mb-4">
                     <div className="w-full bg-slate-200 rounded-full h-1.5 mb-2 relative overflow-hidden">
                       <div className="bg-emerald-500 h-1.5 rounded-full transition-all duration-700 absolute left-0 top-0" style={{ 
-                        width: `${(['Pending Confirmation', 'Cooking', 'Ready', 'Out for Delivery', 'Delivered'].indexOf(order.status) / 4) * 100}%` 
+                        width: `${(['Pending Confirmation', 'Preparing', 'Out for Delivery', 'Delivered'].indexOf(order.status) / 3) * 100}%` 
                       }}></div>
                     </div>
                     <div className="flex justify-between text-[9px] uppercase font-bold text-slate-400">
-                      {['Pending', 'Cooking', 'Ready', 'Delivery', 'Delivered'].map((s, i) => (
-                        <span key={s} className={i <= ['Pending Confirmation', 'Cooking', 'Ready', 'Out for Delivery', 'Delivered'].indexOf(order.status) ? "text-emerald-600" : ""}>{s}</span>
+                      {['Pending', 'Preparing', 'Delivery', 'Delivered'].map((s, i) => (
+                        <span key={s} className={i <= ['Pending Confirmation', 'Preparing', 'Out for Delivery', 'Delivered'].indexOf(order.status) ? "text-emerald-600" : ""}>{s}</span>
                       ))}
                     </div>
                   </div>
@@ -200,33 +200,61 @@ export default function Orders() {
 
               {expandedOrders.has(order.id) && (
                 <div className="mt-4 pt-4 border-t border-slate-100 space-y-6 animate-in slide-in-from-top-2 duration-200">
-                  <div className="space-y-3">
-                    <h4 className="font-bold text-sm text-slate-900">Order Items</h4>
-                    <div className="space-y-2 bg-slate-50 p-4 rounded-lg">
-                      {order.items?.map((item: any, i: number) => (
-                        <div key={i} className="flex justify-between text-slate-700 text-sm">
-                          <span>{item.quantity}x {item.name}</span>
-                          <span className="font-medium">৳{(item.price * item.quantity).toFixed(2)}</span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <div className="space-y-3">
+                      <h4 className="font-bold text-sm text-slate-900">Order Items</h4>
+                      <div className="space-y-2 bg-slate-50 p-4 rounded-lg">
+                        {order.items?.map((item: any, i: number) => (
+                          <div key={i} className="flex justify-between text-slate-700 text-sm">
+                            <span>{item.quantity}x {item.name}</span>
+                            <span className="font-medium">৳{(item.price * item.quantity).toFixed(2)}</span>
+                          </div>
+                        ))}
+                      </div>
+                      
+                      {order.orderNotes && (
+                        <div className="mt-4">
+                          <h4 className="font-bold text-sm text-slate-900 mb-2">Order Notes</h4>
+                          <div className="bg-amber-50 p-3 rounded-lg border border-amber-100 italic text-sm text-slate-700">
+                            "{order.orderNotes}"
+                          </div>
                         </div>
-                      ))}
+                      )}
                     </div>
-                  </div>
 
-                  <div className="space-y-3">
-                    <h4 className="font-bold text-sm text-slate-900">Updates</h4>
-                    <div className="bg-slate-50 p-4 rounded-lg space-y-2 text-sm text-slate-600">
-                      {order.createdAt && (
-                        <div className="flex items-center gap-2">
-                          <Clock size={14} className="text-slate-400" />
-                          <span>Placed: {order.createdAt.toDate().toLocaleString()}</span>
-                        </div>
-                      )}
-                      {order.updatedAt && (
-                        <div className="flex items-center gap-2">
-                          <Clock size={14} className="text-slate-500" />
-                          <span className="font-medium text-slate-900">Last updated: {order.updatedAt.toDate().toLocaleString()} ({order.status})</span>
-                        </div>
-                      )}
+                    <div className="space-y-3">
+                      <h4 className="font-bold text-sm text-slate-900">Status Timeline</h4>
+                      <div className="bg-slate-50 p-4 rounded-lg space-y-4 text-sm text-slate-600">
+                        {order.statusHistory && order.statusHistory.length > 0 ? (
+                          order.statusHistory.map((historyItem: any, i: number) => (
+                             <div key={i} className="flex gap-4 relative">
+                                {i !== order.statusHistory.length - 1 && (
+                                  <div className="absolute top-6 left-1.5 bottom-[-16px] w-[2px] bg-slate-200"></div>
+                                )}
+                                <div className="w-3 h-3 rounded-full bg-emerald-500 mt-1 shrink-0 z-10"></div>
+                                <div>
+                                  <p className="font-bold text-slate-900 text-sm">{historyItem.status}</p>
+                                  <p className="text-xs text-slate-500">{new Date(historyItem.timestamp).toLocaleString()}</p>
+                                </div>
+                             </div>
+                          ))
+                        ) : (
+                          <>
+                            {order.createdAt && (
+                              <div className="flex items-center gap-2">
+                                <Clock size={14} className="text-slate-400" />
+                                <span>Placed: {order.createdAt.toDate().toLocaleString()}</span>
+                              </div>
+                            )}
+                            {order.updatedAt && (
+                              <div className="flex items-center gap-2">
+                                <Clock size={14} className="text-slate-500" />
+                                <span className="font-medium text-slate-900">Last updated: {order.updatedAt.toDate().toLocaleString()} ({order.status})</span>
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
                   
