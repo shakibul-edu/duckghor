@@ -746,7 +746,7 @@ export default function AdminDashboard() {
       )}
 
       {viewDetailOrder && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto">
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-[60] overflow-y-auto">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl my-8 relative flex flex-col">
             <div className="p-6 border-b border-slate-100 flex justify-between items-center sticky top-0 bg-white z-10 rounded-t-2xl">
               <h3 className="font-bold text-xl text-slate-900">Order #{viewDetailOrder.id.slice(0,8).toUpperCase()}</h3>

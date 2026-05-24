@@ -129,7 +129,7 @@ export default function Checkout() {
 
         // Check new/repeat customer rules
         if (couponData.forRepeatCustomersOnly || couponData.forNewCustomersOnly) {
-           const ordersQ = query(collection(db, 'orders'), where('customerEmail', '==', user.email));
+           const ordersQ = query(collection(db, 'orders'), where('customerId', '==', user.uid));
            const ordersSnap = await getCountFromServer(ordersQ);
            const orderCount = ordersSnap.data().count;
 
