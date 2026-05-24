@@ -473,26 +473,31 @@ export default function AdminDashboard() {
                     </span>
                   </td>
                     <td className="px-6 py-4">
-                      <select 
-                        value={order.status}
-                        onChange={(e) => updateStatus(order.id, e.target.value)}
-                        className="bg-white border text-xs font-medium border-slate-200 rounded px-2 py-1.5 focus:ring-1 focus:ring-slate-400 focus:outline-none text-slate-700"
-                      >
-                        <option value="Pending Confirmation">Pending Confirmation</option>
-                        <option value="Preparing">Preparing</option>
-                        <option value="Out for Delivery">Out for Delivery</option>
-                        <option value="Delivered">Delivered</option>
-                        <option value="Cancelled">Cancelled</option>
-                      </select>
-                      <select 
-                        value={order.paymentStatus || 'Pending'}
-                        onChange={(e) => updatePaymentStatus(order.id, e.target.value)}
-                        className="bg-white border text-xs font-medium border-slate-200 rounded px-2 py-1.5 focus:ring-1 focus:ring-slate-400 focus:outline-none text-slate-700 mt-2"
-                      >
-                        <option value="Pending">Payment: Pending</option>
-                        <option value="Paid">Payment: Paid</option>
-                        <option value="Failed">Payment: Failed</option>
-                      </select>
+                      <div className="flex flex-col gap-2">
+                        <select 
+                          value={order.status}
+                          onChange={(e) => updateStatus(order.id, e.target.value)}
+                          className="bg-white border text-xs font-medium border-slate-200 rounded px-2 py-1.5 focus:ring-1 focus:ring-slate-400 focus:outline-none text-slate-700"
+                        >
+                          <option value="Pending Confirmation">Pending Confirmation</option>
+                          <option value="Preparing">Preparing</option>
+                          <option value="Out for Delivery">Out for Delivery</option>
+                          <option value="Delivered">Delivered</option>
+                          <option value="Cancelled">Cancelled</option>
+                        </select>
+                        <select 
+                          value={order.paymentStatus || 'Pending'}
+                          onChange={(e) => updatePaymentStatus(order.id, e.target.value)}
+                          className="bg-white border text-xs font-medium border-slate-200 rounded px-2 py-1.5 focus:ring-1 focus:ring-slate-400 focus:outline-none text-slate-700"
+                        >
+                          <option value="Pending">Payment: Pending</option>
+                          <option value="Paid">Payment: Paid</option>
+                          <option value="Failed">Payment: Failed</option>
+                        </select>
+                        <button onClick={() => setViewDetailOrder(order)} className="mt-1 w-full text-center bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold uppercase tracking-wider text-[10px] py-1.5 rounded transition-colors">
+                          View Details
+                        </button>
+                      </div>
                     </td>
                 </tr>
               ))}
@@ -746,9 +751,9 @@ export default function AdminDashboard() {
       )}
 
       {viewDetailOrder && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-[60] overflow-y-auto">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl my-8 relative flex flex-col">
-            <div className="p-6 border-b border-slate-100 flex justify-between items-center sticky top-0 bg-white z-10 rounded-t-2xl">
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-start justify-center p-4 z-[60] overflow-y-auto min-h-screen">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl my-8 relative flex flex-col shrink-0">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-white rounded-t-2xl">
               <h3 className="font-bold text-xl text-slate-900">Order #{viewDetailOrder.id.slice(0,8).toUpperCase()}</h3>
               <button onClick={() => setViewDetailOrder(null)} className="p-2 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-full transition-colors">
                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
@@ -761,7 +766,12 @@ export default function AdminDashboard() {
                     <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mb-1">Customer</p>
                     <p className="font-bold text-slate-900">{viewDetailOrder.customerName || 'Anonymous'}</p>
                     <p className="text-sm text-slate-600">{viewDetailOrder.customerEmail}</p>
-                    <p className="text-sm text-slate-600">{viewDetailOrder.customerPhone || 'No phone'}</p>
+                    <p className="text-sm text-slate-600 mb-2">{viewDetailOrder.customerPhone || 'No phone'}</p>
+                    {viewDetailOrder.location?.lat && viewDetailOrder.location?.lng && (
+                       <a href={`https://maps.google.com/?q=${viewDetailOrder.location.lat},${viewDetailOrder.location.lng}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded transition-colors">
+                          <MapPin size={14} /> Open in Maps
+                       </a>
+                    )}
                     {viewDetailOrder.orderNotes && (
                       <div className="mt-3 pt-3 border-t border-slate-200">
                         <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mb-1">Notes</p>
@@ -868,9 +878,9 @@ export default function AdminDashboard() {
       )}
 
       {viewDetailCustomer && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl my-8 relative flex flex-col">
-            <div className="p-6 border-b border-slate-100 flex justify-between items-center sticky top-0 bg-white z-10 rounded-t-2xl">
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-start justify-center p-4 z-50 overflow-y-auto min-h-screen">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl my-8 relative flex flex-col shrink-0">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-white rounded-t-2xl">
               <h3 className="font-bold text-xl text-slate-900">Customer Details</h3>
               <button onClick={() => setViewDetailCustomer(null)} className="p-2 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-full transition-colors">
                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
