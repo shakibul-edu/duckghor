@@ -18,12 +18,17 @@ async function startServer() {
       appType: "spa",
     });
     app.use(vite.middlewares);
-    
-    // Explicitly fallback to index.html for unknown routes in dev
-    app.use('*', async (req, res, next) => {
+    // Explicit fallback for both dev and prod in case they slip through
+    app.use(async (req, res, next) => {
       try {
-        const fs = await import('fs');
         const url = req.originalUrl;
+        
+        // If it looks like an API call, return 404 JSON to prevent serving HTML to an API tool
+        if (url.startsWith('/api/')) {
+          return res.status(404).json({ error: 'Not Found' });
+        }
+
+        const fs = await import('fs');
         let template = fs.readFileSync(path.resolve(process.cwd(), 'index.html'), 'utf-8');
         template = await vite.transformIndexHtml(url, template);
         res.status(200).set({ 'Content-Type': 'text/html' }).end(template);
@@ -37,7 +42,11 @@ async function startServer() {
     // Production SPA fallback
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*', (req, res) => {
+    
+    app.use((req, res, next) => {
+      if (req.originalUrl.startsWith('/api/')) {
+        return res.status(404).json({ error: 'Not Found' });
+      }
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }

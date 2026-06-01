@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { CartProvider } from './contexts/CartContext';
 import { testConnection } from './lib/firebase';
@@ -35,6 +35,7 @@ export default function App() {
               <Route path="checkout" element={<Checkout />} />
               <Route path="orders" element={<Orders />} />
               <Route path="admin" element={<AdminDashboard />} />
+              <Route path="*" element={<Navigate to="/menu" replace />} />
             </Route>
           </Routes>
         </BrowserRouter>

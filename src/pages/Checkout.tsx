@@ -38,7 +38,7 @@ export default function Checkout() {
   const [couponError, setCouponError] = useState('');
   const [couponSuccess, setCouponSuccess] = useState('');
   
-  const [storeSettings, setStoreSettings] = useState({ lat: 23.8103, lng: 90.4125, maxDeliveryDistance: 5 });
+  const [storeSettings, setStoreSettings] = useState({ lat: 23.8103, lng: 90.4125, maxDeliveryDistance: 5, isStoreOpen: true });
 
   useEffect(() => {
     if (authLoading) return;
@@ -55,7 +55,8 @@ export default function Checkout() {
           setStoreSettings({
             lat: data.lat || 23.8103,
             lng: data.lng || 90.4125,
-            maxDeliveryDistance: data.maxDeliveryDistance || 5
+            maxDeliveryDistance: data.maxDeliveryDistance || 5,
+            isStoreOpen: data.isStoreOpen !== false
           });
         }
       }).catch(console.error);
@@ -395,6 +396,16 @@ export default function Checkout() {
           </div>
         </div>
       )}
+      
+      {!storeSettings.isStoreOpen && (
+        <div className="bg-rose-50 border border-rose-100 rounded-lg p-4 mb-6 flex items-start gap-3 text-rose-800">
+          <AlertCircle className="mt-0.5 shrink-0" size={18} />
+          <div>
+            <p className="font-bold text-sm">Store Closed</p>
+            <p className="text-sm opacity-90 mt-1">We are currently closed and not accepting new orders. Please check back later.</p>
+          </div>
+        </div>
+      )}
 
       <div className="bg-slate-50 rounded-xl border border-slate-200 p-6 mb-6">
         <div className="flex justify-between font-bold text-lg text-slate-900">
@@ -425,12 +436,12 @@ export default function Checkout() {
       </div>
 
       <button 
-        disabled={!coords || distance === null || loading || outOfZone}
+        disabled={!coords || distance === null || loading || outOfZone || !storeSettings.isStoreOpen}
         onClick={handlePlaceOrder}
         className="w-full bg-slate-900 text-white font-bold text-lg py-4 rounded-lg shadow-sm hover:bg-slate-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
       >
         {loading && <Loader2 size={20} className="animate-spin" />}
-        Place Order
+        {!storeSettings.isStoreOpen ? 'Store Closed' : 'Place Order'}
       </button>
     </div>
   );

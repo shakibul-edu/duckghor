@@ -21,6 +21,7 @@ export default function Menu() {
   const [itemReviews, setItemReviews] = useState<any[]>([]);
   const [loadingReviews, setLoadingReviews] = useState(false);
 
+  const [storeSettings, setStoreSettings] = useState({ lat: 23.8103, lng: 90.4125, maxDeliveryDistance: 5, isStoreOpen: true });
   useEffect(() => {
     let unsubscribeReviews: any;
     if (selectedItem) {
@@ -47,6 +48,18 @@ export default function Menu() {
       setCategories(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Category)).sort((a, b) => (a.order || 0) - (b.order || 0)));
     });
 
+    const unsubSettings = onSnapshot(doc(db, 'settings', 'delivery'), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setStoreSettings({
+          lat: data.lat || 23.8103,
+          lng: data.lng || 90.4125,
+          maxDeliveryDistance: data.maxDeliveryDistance || 5,
+          isStoreOpen: data.isStoreOpen !== false
+        });
+      }
+    });
+
     const unsubscribe = onSnapshot(collection(db, 'menuItems'), snapshot => {
       if (snapshot.empty && isAdmin) {
         // Seed database
@@ -66,6 +79,7 @@ export default function Menu() {
     return () => {
       unsubscribe();
       unsubCategories();
+      unsubSettings();
     };
   }, [isAdmin]);
 
@@ -91,6 +105,12 @@ export default function Menu() {
           <h1 className="text-4xl font-bold tracking-tight text-slate-900 mb-2">Our Menu</h1>
           <p className="text-slate-500 text-lg">Delicious premium duck meals delivered hot and fresh to your door.</p>
         </div>
+
+        {!loading && !storeSettings.isStoreOpen && (
+          <div className="bg-rose-50 border border-rose-200 text-rose-700 p-4 rounded-xl mb-6 font-medium flex-1">
+            Store is temporarily closed. You may browse the menu but ordering is currently disabled.
+          </div>
+        )}
 
         {categories.length > 0 && (
           <div className="flex gap-3 overflow-x-auto pb-4 mb-6 custom-scrollbar">
@@ -138,7 +158,21 @@ export default function Menu() {
                   </div>
                 </div>
                 <div className="p-5 pt-0 mt-auto">
-                  {cartItem ? (
+                  {item.isOutOfStock ? (
+                    <button 
+                      disabled
+                      className="w-full py-2.5 rounded-lg border border-slate-200 font-bold bg-slate-50 text-slate-400 cursor-not-allowed flex items-center justify-center"
+                    >
+                      Out of Stock
+                    </button>
+                  ) : !storeSettings.isStoreOpen ? (
+                    <button 
+                      disabled
+                      className="w-full py-2.5 rounded-lg border border-slate-200 font-bold bg-slate-50 text-slate-400 cursor-not-allowed flex items-center justify-center"
+                    >
+                      Store Closed
+                    </button>
+                  ) : cartItem ? (
                     <div className="flex items-center justify-between bg-slate-50 rounded-lg p-1 border border-slate-200">
                       <button onClick={() => removeFromCart(item.id)} className="p-2 rounded bg-white text-slate-700 shadow-sm hover:bg-slate-100">
                         <Minus size={16} />
@@ -260,15 +294,31 @@ export default function Menu() {
               </div>
               
               <div className="p-5 border-t border-slate-100 bg-white shrink-0">
-                <button 
-                  onClick={() => {
-                    addToCart(selectedItem);
-                    setSelectedItem(null);
-                  }}
-                  className="w-full py-3 bg-amber-500 text-slate-900 hover:bg-amber-400 rounded-xl font-bold shadow-sm transition-colors flex items-center justify-center gap-2"
-                >
-                  <Plus size={18} /> Add to Cart — ৳{selectedItem.price.toFixed(2)}
-                </button>
+                {selectedItem.isOutOfStock ? (
+                    <button 
+                      disabled
+                      className="w-full py-3 rounded-xl border border-slate-200 font-bold bg-slate-50 text-slate-400 cursor-not-allowed flex items-center justify-center"
+                    >
+                      Out of Stock
+                    </button>
+                ) : !storeSettings.isStoreOpen ? (
+                    <button 
+                      disabled
+                      className="w-full py-3 rounded-xl border border-slate-200 font-bold bg-slate-50 text-slate-400 cursor-not-allowed flex items-center justify-center"
+                    >
+                      Store Closed
+                    </button>
+                ) : (
+                  <button 
+                    onClick={() => {
+                      addToCart(selectedItem);
+                      setSelectedItem(null);
+                    }}
+                    className="w-full py-3 bg-amber-500 text-slate-900 hover:bg-amber-400 rounded-xl font-bold shadow-sm transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Plus size={18} /> Add to Cart — ৳{selectedItem.price.toFixed(2)}
+                  </button>
+                )}
               </div>
             </div>
           </div>

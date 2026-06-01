@@ -15,7 +15,7 @@ export default function AdminDashboard() {
   const [filteredRevenue, setFilteredRevenue] = useState(0);
   const [filteredOrders, setFilteredOrders] = useState<any[]>([]);
   const [viewDetailOrder, setViewDetailOrder] = useState<any>(null);
-  const [storeSettings, setStoreSettings] = useState({ lat: 23.8103, lng: 90.4125, maxDeliveryDistance: 5 });
+  const [storeSettings, setStoreSettings] = useState({ lat: 23.8103, lng: 90.4125, maxDeliveryDistance: 5, isStoreOpen: true });
 
   const [savingSettings, setSavingSettings] = useState(false);
 
@@ -25,7 +25,7 @@ export default function AdminDashboard() {
   const [customers, setCustomers] = useState<any[]>([]);
   const [newCategory, setNewCategory] = useState({ name: '', order: 0 });
   const [newCoupon, setNewCoupon] = useState({ code: '', discountPercentage: 10, isActive: true, quantity: 100, minAmount: 0, maxDiscount: 0, forRepeatCustomersOnly: false, forNewCustomersOnly: false });
-  const [newItem, setNewItem] = useState({ name: '', description: '', price: 0, image: '', categoryId: '' });
+  const [newItem, setNewItem] = useState({ name: '', description: '', price: 0, image: '', categoryId: '', isOutOfStock: false });
   const [editingCategory, setEditingCategory] = useState<any>(null);
   const [editingMenuItem, setEditingMenuItem] = useState<any>(null);
   const [viewDetailCustomer, setViewDetailCustomer] = useState<any>(null);
@@ -85,7 +85,8 @@ export default function AdminDashboard() {
         setStoreSettings({
           lat: data.lat || 23.8103,
           lng: data.lng || 90.4125,
-          maxDeliveryDistance: data.maxDeliveryDistance || 5
+          maxDeliveryDistance: data.maxDeliveryDistance || 5,
+          isStoreOpen: data.isStoreOpen !== false // defaults to true
         });
       }
     });
@@ -207,7 +208,7 @@ export default function AdminDashboard() {
        import('firebase/firestore').then(({ doc, setDoc }) => {
          const id = 'm' + Date.now();
          setDoc(doc(db, 'menuItems', id), { ...newItem, id, price: Number(newItem.price) });
-         setNewItem({ name: '', description: '', price: 0, image: '', categoryId: '' });
+         setNewItem({ name: '', description: '', price: 0, image: '', categoryId: '', isOutOfStock: false });
        });
     } catch (e) {
       console.error(e);
@@ -595,15 +596,20 @@ export default function AdminDashboard() {
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
           <h4 className="font-bold text-slate-900 mb-6">Manage Menu Items</h4>
           <div className="grid grid-cols-1 md:grid-cols-6 gap-4 mb-8">
-            <input placeholder="Name" value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})} className="border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-slate-500" />
-            <input placeholder="Description" value={newItem.description} onChange={e => setNewItem({...newItem, description: e.target.value})} className="border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-slate-500" />
-            <select value={newItem.categoryId} onChange={e => setNewItem({...newItem, categoryId: e.target.value})} className="border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-slate-500 text-slate-700">
+            <input placeholder="Name" value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})} className="border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-slate-500 md:col-span-2" />
+            <input placeholder="Description" value={newItem.description} onChange={e => setNewItem({...newItem, description: e.target.value})} className="border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-slate-500 md:col-span-2" />
+            <select value={newItem.categoryId} onChange={e => setNewItem({...newItem, categoryId: e.target.value})} className="border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-slate-500 text-slate-700 md:col-span-2">
                <option value="">Select Category</option>
                {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
-            <input type="number" placeholder="Price" value={newItem.price || ''} onChange={e => setNewItem({...newItem, price: Number(e.target.value)})} className="border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-slate-500" />
-            <input placeholder="Image URL" value={newItem.image} onChange={e => setNewItem({...newItem, image: e.target.value})} className="border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-slate-500" />
-            <button onClick={addMenuItem} className="bg-slate-900 text-white rounded px-4 py-2 text-sm font-bold hover:bg-slate-800">Add Item</button>
+            <input type="number" placeholder="Price" value={newItem.price || ''} onChange={e => setNewItem({...newItem, price: Number(e.target.value)})} className="border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-slate-500 md:col-span-2" />
+            <input placeholder="Image URL" value={newItem.image} onChange={e => setNewItem({...newItem, image: e.target.value})} className="border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-slate-500 md:col-span-2" />
+            
+            <div className="flex items-center gap-2 md:col-span-1">
+               <input id="item-outofstock" type="checkbox" checked={newItem.isOutOfStock} onChange={e => setNewItem({...newItem, isOutOfStock: e.target.checked})} className="rounded text-slate-900 w-4 h-4 cursor-pointer" />
+               <label htmlFor="item-outofstock" className="font-bold text-slate-700 cursor-pointer text-sm">Out of Stock</label>
+            </div>
+            <button onClick={addMenuItem} className="bg-slate-900 text-white rounded px-4 py-2 text-sm font-bold hover:bg-slate-800 md:col-span-1">Add Item</button>
           </div>
           <div className="space-y-4">
             {menuItems.map(item => {
@@ -627,6 +633,10 @@ export default function AdminDashboard() {
                         </div>
                         <div className="flex gap-4 items-center">
                           <input value={editingMenuItem.image} onChange={e => setEditingMenuItem({...editingMenuItem, image: e.target.value})} className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-slate-500" placeholder="Image URL" />
+                          <div className="flex items-center gap-2">
+                            <input id={`edit-stock-${item.id}`} type="checkbox" checked={editingMenuItem.isOutOfStock} onChange={e => setEditingMenuItem({...editingMenuItem, isOutOfStock: e.target.checked})} className="rounded text-slate-900 w-4 h-4 cursor-pointer" />
+                            <label htmlFor={`edit-stock-${item.id}`} className="font-bold text-slate-700 cursor-pointer text-sm whitespace-nowrap">Out of Stock</label>
+                          </div>
                           <button onClick={updateMenuItem} className="bg-emerald-500 text-white rounded px-4 py-2 text-sm font-bold hover:bg-emerald-600">Save</button>
                           <button onClick={() => setEditingMenuItem(null)} className="text-slate-500 text-sm font-bold hover:underline">Cancel</button>
                         </div>
@@ -638,7 +648,10 @@ export default function AdminDashboard() {
                            {item.image && <img src={item.image || undefined} alt={item.name} className="w-full h-full object-cover" />}
                          </div>
                          <div>
-                           <div className="font-bold text-slate-900 text-sm">{item.name}</div>
+                           <div className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                             {item.name}
+                             {item.isOutOfStock && <span className="bg-red-50 text-red-600 px-2 py-0.5 rounded text-[10px] font-bold">Out of Stock</span>}
+                           </div>
                            <div className="flex gap-2 items-center">
                              <span className="text-slate-500 text-xs font-bold">৳{item.price.toFixed(2)}</span>
                              {itemCat && <span className="bg-slate-100 text-[10px] text-slate-600 px-2 py-0.5 rounded font-bold">{itemCat.name}</span>}
@@ -728,18 +741,14 @@ export default function AdminDashboard() {
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
           <h4 className="font-bold text-slate-900 mb-6">Delivery & Store Settings</h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl">
-            <div>
-               <label className="block text-sm font-bold text-slate-700 mb-1">Store Latitude</label>
-               <input type="number" step="any" value={storeSettings.lat} onChange={e => setStoreSettings({...storeSettings, lat: Number(e.target.value)})} className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-slate-500" />
-            </div>
-            <div>
-               <label className="block text-sm font-bold text-slate-700 mb-1">Store Longitude</label>
-               <input type="number" step="any" value={storeSettings.lng} onChange={e => setStoreSettings({...storeSettings, lng: Number(e.target.value)})} className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-slate-500" />
-            </div>
             <div className="md:col-span-2">
                <label className="block text-sm font-bold text-slate-700 mb-1">Max Delivery Distance (km)</label>
                <input type="number" step="0.5" value={storeSettings.maxDeliveryDistance} onChange={e => setStoreSettings({...storeSettings, maxDeliveryDistance: Number(e.target.value)})} className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-slate-500" />
                <p className="text-xs text-slate-500 mt-1">Users outside this radius will not be able to order.</p>
+            </div>
+            <div className="md:col-span-2 flex items-center gap-2 mb-2">
+               <input id="store-open-checkbox" type="checkbox" checked={storeSettings.isStoreOpen} onChange={e => setStoreSettings({...storeSettings, isStoreOpen: e.target.checked})} className="rounded text-slate-900 w-4 h-4 cursor-pointer" />
+               <label htmlFor="store-open-checkbox" className="font-bold text-slate-700 cursor-pointer text-sm">Store is Open</label>
             </div>
             <div className="md:col-span-2">
                <button onClick={saveSettings} disabled={savingSettings} className="bg-slate-900 text-white rounded px-6 py-2 text-sm font-bold hover:bg-slate-800 disabled:opacity-50">
